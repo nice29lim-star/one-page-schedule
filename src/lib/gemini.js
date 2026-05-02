@@ -11,6 +11,11 @@ async function callGemini(systemPrompt, userContent) {
     }),
   })
   const data = await res.json()
+  
+  if (!data.candidates || !data.candidates[0]) {
+    console.error('Gemini API 에러 상세:', data)
+  }
+
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '코멘트 생성 실패'
 }
 
