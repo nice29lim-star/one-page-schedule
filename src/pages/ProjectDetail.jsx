@@ -1,0 +1,296 @@
+import React, { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { supabase, MEMBERS } from '../lib/supabase.js'
+import { generateTmComment, generateSalesComment, generateDmComment } from '../lib/gemini.js'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth } from 'date-fns'
+import { ko } from 'date-fns/locale'
+
+const TABS = ['TM', '영업', 'DM', '달력']
+const DAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+function LogCard({ log, type, onDelete }) {
+  const typeColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6' }
+  const color = typeColor[type]
+  return (
+    <div className="card card-sm mb-16" style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="flex-between mb-8">
+        <div className="flex-center gap-8">
+          <span style={{ fontSize: 12, fontWeight: 600, color }}>{log.assigned_to || log.sent_by}</span>
+          {log.next_contact_date && <span className="text-sm text-muted">다음: {log.next_contact_date}</span>}
+          {log.follow_call_date && <span className="text-sm text-muted">확인전화: {log.follow_call_date}</span>}
+          {log.sent_at && <span className="text-sm text-muted">발송: {log.sent_at}</span>}
+        </div>
+        <div className="flex-center gap-8">
+          <span className="text-sm text-muted">{new Date(log.created_at).toLocaleDateString('ko-KR')}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => onDelete(log.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
+        </div>
+      </div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.6, marginBottom: log.dm_content ? 0 : 8 }}>
+        {log.content || log.dm_content}
+      </div>
+      {log.follow_call_done && (
+        <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>
+          ✓ 확인전화 완료 {log.follow_called_by && `(${log.follow_called_by})`}
+        </div>
+      )}
+      {log.ai_comment && (
+        <div className="ai-comment">
+          <div className="ai-comment-header">✦ AI 전략 코멘트</div>
+          {log.ai_comment}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function ProjectDetail() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [project, setProject] = useState(null)
+  const [tab, setTab] = useState('TM')
+  const [tmLogs, setTmLogs] = useState([])
+  const [salesLogs, setSalesLogs] = useState([])
+  const [dmLogs, setDmLogs] = useState([])
+  const [calMonth, setCalMonth] = useState(new Date())
+  const [calEvents, setCalEvents] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [form, setForm] = useState({
+    assigned_to: MEMBERS[0], sent_by: MEMBERS[0],
+    content: '', dm_content: '',
+    next_contact_date: '', follow_call_date: '',
+    sent_at: new Date().toISOString().split('T')[0],
+    follow_call_done: false, follow_called_by: MEMBERS[0],
+  })
+
+  useEffect(() => { fetchAll() }, [id])
+  useEffect(() => { fetchCalendar() }, [calMonth, id])
+
+  async function fetchAll() {
+    const [{ data: p }, { data: tm }, { data: s }, { data: dm }] = await Promise.all([
+      supabase.from('projects').select('*').eq('id', id).single(),
+      supabase.from('tm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+      supabase.from('sales_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+      supabase.from('dm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+    ])
+    setProject(p)
+    setTmLogs(tm || [])
+    setSalesLogs(s || [])
+    setDmLogs(dm || [])
+  }
+
+  async function fetchCalendar() {
+    const from = format(startOfMonth(calMonth), 'yyyy-MM-dd')
+    const to = format(endOfMonth(calMonth), 'yyyy-MM-dd')
+    const { data } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('project_id', id)
+      .gte('event_date', from)
+      .lte('event_date', to)
+    setCalEvents(data || [])
+  }
+
+  async function submitForm() {
+    setAiLoading(true)
+    try {
+      if (tab === 'TM') {
+        const history = tmLogs.map(l => l.content).join('\n')
+        const ai = await generateTmComment(form.content, form.next_contact_date, history)
+        await supabase.from('tm_logs').insert([{
+          project_id: id, assigned_to: form.assigned_to,
+          content: form.content, next_contact_date: form.next_contact_date || null,
+          ai_comment: ai,
+        }])
+      } else if (tab === '영업') {
+        const history = salesLogs.map(l => l.content).join('\n')
+        const ai = await generateSalesComment(form.content, form.next_contact_date, history)
+        await supabase.from('sales_logs').insert([{
+          project_id: id, assigned_to: form.assigned_to,
+          content: form.content, next_contact_date: form.next_contact_date || null,
+          ai_comment: ai,
+        }])
+      } else if (tab === 'DM') {
+        const history = dmLogs.map(l => l.dm_content).join('\n')
+        const ai = await generateDmComment(form.dm_content, form.follow_call_date, history)
+        await supabase.from('dm_logs').insert([{
+          project_id: id, sent_by: form.sent_by,
+          dm_content: form.dm_content, sent_at: form.sent_at,
+          follow_call_date: form.follow_call_date || null,
+          follow_call_done: form.follow_call_done,
+          follow_called_by: form.follow_call_done ? form.follow_called_by : null,
+          ai_comment: ai,
+        }])
+      }
+      setShowForm(false)
+      setForm({ assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
+      fetchAll()
+    } catch (e) {
+      alert('저장 중 오류가 발생했어요: ' + e.message)
+    }
+    setAiLoading(false)
+  }
+
+  async function deleteLog(table, logId) {
+    if (!confirm('삭제할까요?')) return
+    await supabase.from(table).delete().eq('id', logId)
+    fetchAll()
+  }
+
+  // 달력 렌더링
+  const monthDays = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) })
+  const startPad = getDay(startOfMonth(calMonth))
+  const eventColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', confirmed: '#F59E0B' }
+  const eventLabel = { tm: 'TM', sales: '영업', dm: 'DM', confirmed: '확정' }
+
+  if (!project) return <div className="loading"><div className="spinner" /></div>
+
+  return (
+    <div>
+      <div className="page-header">
+        <button className="btn btn-ghost btn-sm mb-8" onClick={() => navigate('/projects')}>← 목록으로</button>
+        <div className="flex-between">
+          <div>
+            <div className="page-title">{project.name}</div>
+            <div className="page-subtitle">담당: {project.assigned_to} {project.memo && `· ${project.memo}`}</div>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ {tab} 추가</button>
+        </div>
+      </div>
+
+      <div className="tabs mb-16">
+        {TABS.map(t => <button key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
+      </div>
+
+      {/* TM 탭 */}
+      {tab === 'TM' && (
+        <div>
+          {tmLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>TM 기록이 없어요</div>
+            : tmLogs.map(l => <LogCard key={l.id} log={l} type="tm" onDelete={id => deleteLog('tm_logs', id)} />)}
+        </div>
+      )}
+
+      {/* 영업 탭 */}
+      {tab === '영업' && (
+        <div>
+          {salesLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>영업 기록이 없어요</div>
+            : salesLogs.map(l => <LogCard key={l.id} log={l} type="sales" onDelete={id => deleteLog('sales_logs', id)} />)}
+        </div>
+      )}
+
+      {/* DM 탭 */}
+      {tab === 'DM' && (
+        <div>
+          {dmLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>DM 기록이 없어요</div>
+            : dmLogs.map(l => <LogCard key={l.id} log={l} type="dm" onDelete={id => deleteLog('dm_logs', id)} />)}
+        </div>
+      )}
+
+      {/* 달력 탭 */}
+      {tab === '달력' && (
+        <div>
+          <div className="flex-between mb-16">
+            <button className="btn btn-secondary btn-sm" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1))}>← 이전달</button>
+            <div style={{ fontWeight: 600 }}>{format(calMonth, 'yyyy년 MM월')}</div>
+            <button className="btn btn-secondary btn-sm" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1))}>다음달 →</button>
+          </div>
+          <div className="calendar-grid">
+            {DAYS.map(d => <div key={d} className="calendar-header-cell">{d}</div>)}
+            {Array.from({ length: startPad }).map((_, i) => <div key={`pad-${i}`} className="calendar-day other-month" />)}
+            {monthDays.map(day => {
+              const dayEvents = calEvents.filter(e => e.event_date === format(day, 'yyyy-MM-dd'))
+              const isToday = isSameDay(day, new Date())
+              return (
+                <div key={day.toString()} className={`calendar-day${isToday ? ' today' : ''}`}>
+                  <div className={`day-number${isToday ? ' today-num' : ''}`}>{format(day, 'd')}</div>
+                  {dayEvents.map(e => (
+                    <div key={e.source_id} className="cal-event" style={{ background: eventColor[e.event_type] + '20', color: eventColor[e.event_type] }}>
+                      {eventLabel[e.event_type]} {e.assigned_to && `(${e.assigned_to})`}
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 입력 모달 */}
+      {showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{tab} 추가</div>
+              <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
+            </div>
+
+            {tab !== 'DM' ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">담당자</label>
+                  <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+                    {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{tab} 내용 *</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder={tab === 'TM' ? '통화 내용을 입력하세요' : '미팅/방문 내용을 입력하세요'} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">다음 연락일</label>
+                  <input type="date" className="form-input" value={form.next_contact_date} onChange={e => setForm(f => ({ ...f, next_contact_date: e.target.value }))} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">발송자</label>
+                  <select className="form-select" value={form.sent_by} onChange={e => setForm(f => ({ ...f, sent_by: e.target.value }))}>
+                    {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">발송일</label>
+                  <input type="date" className="form-input" value={form.sent_at} onChange={e => setForm(f => ({ ...f, sent_at: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">DM 내용 *</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="어떤 내용으로 DM을 보냈는지 입력하세요" value={form.dm_content} onChange={e => setForm(f => ({ ...f, dm_content: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">확인 전화 예정일</label>
+                  <input type="date" className="form-input" value={form.follow_call_date} onChange={e => setForm(f => ({ ...f, follow_call_date: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={form.follow_call_done} onChange={e => setForm(f => ({ ...f, follow_call_done: e.target.checked }))} />
+                    확인 전화 완료
+                  </label>
+                </div>
+                {form.follow_call_done && (
+                  <div className="form-group">
+                    <label className="form-label">전화한 사람</label>
+                    <select className="form-select" value={form.follow_called_by} onChange={e => setForm(f => ({ ...f, follow_called_by: e.target.value }))}>
+                      {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div style={{ background: 'var(--accent-bg)', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8', marginBottom: 16 }}>
+              ✦ 저장 시 Gemini AI가 전략 코멘트를 자동 생성해요
+            </div>
+
+            <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>취소</button>
+              <button className="btn btn-primary" onClick={submitForm} disabled={aiLoading}>
+                {aiLoading ? '✦ AI 분석 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
