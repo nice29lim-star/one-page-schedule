@@ -55,6 +55,7 @@ export default function ProjectDetail() {
   const [calEvents, setCalEvents] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
   const [form, setForm] = useState({
     assigned_to: MEMBERS[0], sent_by: MEMBERS[0],
     content: '', dm_content: '',
@@ -204,7 +205,7 @@ export default function ProjectDetail() {
                 <div key={day.toString()} className={`calendar-day${isToday ? ' today' : ''}`}>
                   <div className={`day-number${isToday ? ' today-num' : ''}`}>{format(day, 'd')}</div>
                   {dayEvents.map(e => (
-                    <div key={e.source_id} className="cal-event" style={{ background: eventColor[e.event_type] + '20', color: eventColor[e.event_type] }}>
+                    <div key={e.source_id} className="cal-event" style={{ background: eventColor[e.event_type] + '20', color: eventColor[e.event_type], cursor: 'pointer' }} onClick={() => setSelectedEvent(e)}>
                       {eventLabel[e.event_type]} {e.assigned_to && `(${e.assigned_to})`}
                     </div>
                   ))}
@@ -288,6 +289,30 @@ export default function ProjectDetail() {
                 {aiLoading ? '✦ AI 분석 중...' : '저장'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 달력 이벤트 상세 팝업 */}
+      {selectedEvent && (
+        <div className="modal-overlay" onClick={() => setSelectedEvent(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="flex-center gap-8">
+                <span style={{ background: eventColor[selectedEvent.event_type] + '20', color: eventColor[selectedEvent.event_type], padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                  {eventLabel[selectedEvent.event_type]}
+                </span>
+                <div className="modal-title">{project.name}</div>
+              </div>
+              <button className="modal-close" onClick={() => setSelectedEvent(null)}>×</button>
+            </div>
+            <table style={{ width: '100%', fontSize: 13.5, borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr><td style={{ padding: '6px 0', color: 'var(--text2)', width: 80 }}>날짜</td><td style={{ fontWeight: 500 }}>{selectedEvent.event_date}</td></tr>
+                {selectedEvent.assigned_to && <tr><td style={{ padding: '6px 0', color: 'var(--text2)' }}>담당자</td><td style={{ fontWeight: 500 }}>{selectedEvent.assigned_to}</td></tr>}
+                <tr><td style={{ padding: '6px 0', color: 'var(--text2)', verticalAlign: 'top', paddingTop: 10 }}>내용</td><td style={{ paddingTop: 10, lineHeight: 1.6 }}>{selectedEvent.content}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       )}

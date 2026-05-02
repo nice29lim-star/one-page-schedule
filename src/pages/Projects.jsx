@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, MEMBERS } from '../lib/supabase.js'
+import { generateTmComment, generateSalesComment, generateDmComment } from '../lib/gemini.js'
 
 export default function Projects() {
   const [projects, setProjects] = useState([])
   const [filter, setFilter] = useState('전체')
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', assigned_to: MEMBERS[0], memo: '' })
+  const [form, setForm] = useState({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '' })
   const [loading, setLoading] = useState(true)
+  const [aiLoading, setAiLoading] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => { fetch() }, [])
@@ -21,10 +23,38 @@ export default function Projects() {
 
   async function addProject() {
     if (!form.name.trim()) return
-    await supabase.from('projects').insert([form])
-    setShowAdd(false)
-    setForm({ name: '', assigned_to: MEMBERS[0], memo: '' })
-    fetch()
+    setAiLoading(true)
+    try {
+      const { data: newProject, error } = await supabase.from('projects').insert([{
+        name: form.name,
+        assigned_to: form.assigned_to,
+        memo: form.memo
+      }]).select().single()
+
+      if (error) throw error
+
+      if (form.memo && form.memo.trim()) {
+        if (form.type === 'TM') {
+          const ai = await generateTmComment(form.memo, '', '')
+          await supabase.from('tm_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, ai_comment: ai }])
+        } else if (form.type === '영업') {
+          const ai = await generateSalesComment(form.memo, '', '')
+          await supabase.from('sales_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, ai_comment: ai }])
+        } else if (form.type === 'DM') {
+          const ai = await generateDmComment(form.memo, '', '')
+          await supabase.from('dm_logs').insert([{ project_id: newProject.id, sent_by: form.assigned_to, dm_content: form.memo, sent_at: new Date().toISOString().split('T')[0], ai_comment: ai }])
+        }
+      }
+
+      setShowAdd(false)
+      setForm({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '' })
+      setFilter('전체')
+      fetch()
+    } catch (e) {
+      alert("학교 추가 중 오류 발생: " + e.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const filtered = filter === '전체' ? projects : projects.filter(p => p.assigned_to === filter)
@@ -89,12 +119,22 @@ export default function Projects() {
               </select>
             </div>
             <div className="form-group">
+              <label className="form-label">메모 내용 구분</label>
+              <select className="form-select" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="TM">TM</option>
+                <option value="영업">영업</option>
+                <option value="DM">DM</option>
+              </select>
+            </div>
+            <div className="form-group">
               <label className="form-label">메모</label>
-              <textarea className="form-textarea" placeholder="학교 관련 메모" value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
+              <textarea className="form-textarea" placeholder="학교 관련 메모 및 내용" value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
             </div>
             <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>취소</button>
-              <button className="btn btn-primary" onClick={addProject}>추가</button>
+              <button className="btn btn-primary" onClick={addProject} disabled={aiLoading}>
+                {aiLoading ? 'AI 분석 중...' : '추가'}
+              </button>
             </div>
           </div>
         </div>
