@@ -7,7 +7,7 @@ export default function Projects() {
   const [projects, setProjects] = useState([])
   const [filter, setFilter] = useState('전체')
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '' })
+  const [form, setForm] = useState({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '', next_contact_date: '' })
   const [loading, setLoading] = useState(true)
   const [aiLoading, setAiLoading] = useState(false)
   const navigate = useNavigate()
@@ -35,19 +35,19 @@ export default function Projects() {
 
       if (form.memo && form.memo.trim()) {
         if (form.type === 'TM') {
-          const ai = await generateTmComment(form.memo, '', '')
-          await supabase.from('tm_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, ai_comment: ai }])
+          const ai = await generateTmComment(form.memo, form.next_contact_date, '')
+          await supabase.from('tm_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, next_contact_date: form.next_contact_date || null, ai_comment: ai }])
         } else if (form.type === '영업') {
-          const ai = await generateSalesComment(form.memo, '', '')
-          await supabase.from('sales_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, ai_comment: ai }])
+          const ai = await generateSalesComment(form.memo, form.next_contact_date, '')
+          await supabase.from('sales_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, next_contact_date: form.next_contact_date || null, ai_comment: ai }])
         } else if (form.type === 'DM') {
-          const ai = await generateDmComment(form.memo, '', '')
-          await supabase.from('dm_logs').insert([{ project_id: newProject.id, sent_by: form.assigned_to, dm_content: form.memo, sent_at: new Date().toISOString().split('T')[0], ai_comment: ai }])
+          const ai = await generateDmComment(form.memo, form.next_contact_date, '')
+          await supabase.from('dm_logs').insert([{ project_id: newProject.id, sent_by: form.assigned_to, dm_content: form.memo, sent_at: new Date().toISOString().split('T')[0], follow_call_date: form.next_contact_date || null, ai_comment: ai }])
         }
       }
 
       setShowAdd(false)
-      setForm({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '' })
+      setForm({ name: '', assigned_to: MEMBERS[0], type: 'TM', memo: '', next_contact_date: '' })
       setFilter('전체')
       fetch()
     } catch (e) {
@@ -129,6 +129,10 @@ export default function Projects() {
             <div className="form-group">
               <label className="form-label">메모</label>
               <textarea className="form-textarea" placeholder="학교 관련 메모 및 내용" value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">다음 진행 일정</label>
+              <input type="date" className="form-input" value={form.next_contact_date} onChange={e => setForm(f => ({ ...f, next_contact_date: e.target.value }))} />
             </div>
             <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>취소</button>
