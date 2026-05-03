@@ -25,10 +25,26 @@ export default function TomorrowTasks() {
 
   async function addTask() {
     if (!form.content.trim()) return
-    await supabase.from('daily_tasks').insert([{ ...form, task_date: targetDate }])
+    const insertDate = form.task_date || targetDate
+    const { error } = await supabase.from('daily_tasks').insert([{ 
+      type: form.type, 
+      content: form.content, 
+      assigned_to: form.assigned_to, 
+      task_date: insertDate 
+    }])
+    
+    if (error) {
+      alert('할 일 저장 중 오류 발생: ' + error.message)
+      return
+    }
+    
     setShowAdd(false)
+    if (insertDate !== targetDate) {
+      setTargetDate(insertDate) // 날짜가 바뀌면 useEffect가 fetch를 실행함
+    } else {
+      fetch() // 같은 날짜면 수동으로 fetch 실행
+    }
     setForm({ type: 'tm', content: '', assigned_to: MEMBERS[0], task_date: '' })
-    fetch()
   }
 
   async function deleteTask(id) {
@@ -91,6 +107,10 @@ export default function TomorrowTasks() {
             <div className="modal-header">
               <div className="modal-title">할 일 추가</div>
               <button className="modal-close" onClick={() => setShowAdd(false)}>×</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">날짜 선택</label>
+              <input type="date" className="form-input" value={form.task_date || targetDate} onChange={e => setForm(f => ({ ...f, task_date: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">유형</label>
