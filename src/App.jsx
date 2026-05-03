@@ -21,6 +21,7 @@ const NAV = [
 export default function App() {
   const [showPopup, setShowPopup] = useState(false)
   const [todayTasks, setTodayTasks] = useState([])
+  const [todayEvents, setTodayEvents] = useState([])
   const location = useLocation()
 
   useEffect(() => {
@@ -35,12 +36,12 @@ export default function App() {
 
   async function fetchTodayTasks() {
     const today = new Date().toISOString().split('T')[0]
-    const { data } = await supabase
-      .from('daily_tasks')
-      .select('*')
-      .eq('task_date', today)
-      .order('assigned_to')
-    setTodayTasks(data || [])
+    const [{ data: dTasks }, { data: dEvents }] = await Promise.all([
+      supabase.from('daily_tasks').select('*').eq('task_date', today).order('assigned_to'),
+      supabase.from('calendar_events').select('*').eq('event_date', today).order('assigned_to')
+    ])
+    setTodayTasks(dTasks || [])
+    setTodayEvents(dEvents || [])
   }
 
   const isFinance = location.pathname.startsWith('/finance')
@@ -88,6 +89,7 @@ export default function App() {
       {showPopup && (
         <TodayPopup
           tasks={todayTasks}
+          events={todayEvents}
           onClose={() => setShowPopup(false)}
         />
       )}

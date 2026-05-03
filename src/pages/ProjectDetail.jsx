@@ -58,6 +58,7 @@ export default function ProjectDetail() {
   const [aiLoading, setAiLoading] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [form, setForm] = useState({
+    record_date: new Date().toISOString().split('T')[0],
     assigned_to: MEMBERS[0], sent_by: MEMBERS[0],
     content: '', dm_content: '',
     next_contact_date: '', follow_call_date: '',
@@ -104,6 +105,7 @@ export default function ProjectDetail() {
         await supabase.from('tm_logs').insert([{
           project_id: id, assigned_to: form.assigned_to,
           content: form.content, next_contact_date: form.next_contact_date || null,
+          created_at: new Date(form.record_date).toISOString(),
           ai_comment: ai,
         }])
       } else if (tab === '영업') {
@@ -112,6 +114,7 @@ export default function ProjectDetail() {
         await supabase.from('sales_logs').insert([{
           project_id: id, assigned_to: form.assigned_to,
           content: form.content, next_contact_date: form.next_contact_date || null,
+          created_at: new Date(form.record_date).toISOString(),
           ai_comment: ai,
         }])
       } else if (tab === 'DM') {
@@ -123,19 +126,21 @@ export default function ProjectDetail() {
           follow_call_date: form.follow_call_date || null,
           follow_call_done: form.follow_call_done,
           follow_called_by: form.follow_call_done ? form.follow_called_by : null,
+          created_at: new Date(form.record_date).toISOString(),
           ai_comment: ai,
         }])
       } else if (tab === '기획') {
         const history = planLogs.map(l => l.content).join('\n')
-        const ai = await generatePlanComment(form.content, form.next_contact_date, history)
+        const ai = null // 기획은 AI 코멘트 생략
         await supabase.from('plan_logs').insert([{
           project_id: id, assigned_to: form.assigned_to,
           content: form.content, next_contact_date: form.next_contact_date || null,
+          created_at: new Date(form.record_date).toISOString(),
           ai_comment: ai,
         }])
       }
       setShowForm(false)
-      setForm({ assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
+      setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
       fetchAll()
       fetchCalendar() // 새 기록 추가 시 달력도 새로고침
     } catch (e) {
@@ -267,6 +272,10 @@ export default function ProjectDetail() {
             {tab !== 'DM' ? (
               <>
                 <div className="form-group">
+                  <label className="form-label">작성 일자</label>
+                  <input type="date" className="form-input" value={form.record_date} onChange={e => setForm(f => ({ ...f, record_date: e.target.value }))} />
+                </div>
+                <div className="form-group">
                   <label className="form-label">담당자</label>
                   <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
                     {MEMBERS.map(m => <option key={m}>{m}</option>)}
@@ -277,12 +286,16 @@ export default function ProjectDetail() {
                   <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder={tab === 'TM' ? '통화 내용을 입력하세요' : '미팅/방문 내용을 입력하세요'} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">다음 연락일</label>
+                  <label className="form-label">예정일 (언제 할지)</label>
                   <input type="date" className="form-input" value={form.next_contact_date} onChange={e => setForm(f => ({ ...f, next_contact_date: e.target.value }))} />
                 </div>
               </>
             ) : (
               <>
+                <div className="form-group">
+                  <label className="form-label">작성 일자</label>
+                  <input type="date" className="form-input" value={form.record_date} onChange={e => setForm(f => ({ ...f, record_date: e.target.value }))} />
+                </div>
                 <div className="form-group">
                   <label className="form-label">발송자</label>
                   <select className="form-select" value={form.sent_by} onChange={e => setForm(f => ({ ...f, sent_by: e.target.value }))}>
@@ -318,9 +331,11 @@ export default function ProjectDetail() {
               </>
             )}
 
-            <div style={{ background: 'var(--accent-bg)', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8', marginBottom: 16 }}>
-              ✦ 저장 시 Gemini AI가 전략 코멘트를 자동 생성해요
-            </div>
+            {tab !== '기획' && (
+              <div style={{ background: 'var(--accent-bg)', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8', marginBottom: 16 }}>
+                ✦ 저장 시 Gemini AI가 전략 코멘트를 자동 생성해요
+              </div>
+            )}
 
             <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setShowForm(false)}>취소</button>
