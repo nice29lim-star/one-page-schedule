@@ -126,6 +126,7 @@ export default function ProjectDetail() {
       setShowForm(false)
       setForm({ assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
       fetchAll()
+      fetchCalendar() // 새 기록 추가 시 달력도 새로고침
     } catch (e) {
       alert('저장 중 오류가 발생했어요: ' + e.message)
     }
@@ -136,6 +137,22 @@ export default function ProjectDetail() {
     if (!confirm('삭제할까요?')) return
     await supabase.from(table).delete().eq('id', logId)
     fetchAll()
+    fetchCalendar() // 달력 데이터도 함께 새로고침
+  }
+
+  async function deleteProject() {
+    if (!confirm('정말 이 학교(프로젝트)를 삭제하시겠습니까? 관련된 모든 기록이 함께 삭제됩니다.')) return
+    
+    try {
+      // 1. 프로젝트 삭제 (관련 로그는 DB의 ON DELETE CASCADE 설정으로 자동 삭제되거나, 뷰에서 사라짐)
+      const { error } = await supabase.from('projects').delete().eq('id', id)
+      if (error) throw error
+      
+      alert('삭제되었습니다.')
+      navigate('/projects') // 삭제 후 목록으로 이동
+    } catch (e) {
+      alert('프로젝트 삭제 중 오류 발생: ' + e.message)
+    }
   }
 
   // 달력 렌더링
@@ -152,7 +169,10 @@ export default function ProjectDetail() {
         <button className="btn btn-ghost btn-sm mb-8" onClick={() => navigate('/projects')}>← 목록으로</button>
         <div className="flex-between">
           <div>
-            <div className="page-title">{project.name}</div>
+            <div className="flex-center gap-12">
+              <div className="page-title">{project.name}</div>
+              <button className="btn btn-ghost btn-sm" onClick={deleteProject} style={{ color: 'var(--danger)', padding: '4px 8px' }}>학교 삭제</button>
+            </div>
             <div className="page-subtitle">담당: {project.assigned_to} {project.memo && `· ${project.memo}`}</div>
           </div>
           <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ {tab} 추가</button>
