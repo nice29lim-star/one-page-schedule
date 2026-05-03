@@ -7,7 +7,7 @@ async function callGemini(systemPrompt, userContent) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: `${systemPrompt}\n\n${userContent}` }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
     }),
   })
   const data = await res.json()
