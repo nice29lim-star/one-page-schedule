@@ -73,16 +73,17 @@ export default function Finance() {
 
   async function addProject() {
     if (!form.name.trim()) return
-    const { data: fp } = await supabase.from('finance_projects').insert([{
-      name: form.name, project_id: form.project_id || null,
-      contract_date: form.contract_date || null,
-      execute_date: form.execute_date || null,
-      status: form.status, memo: form.memo,
-    }]).select().single()
+    
+    if (form.id) {
+      // Update existing
+      await supabase.from('finance_projects').update({
+        name: form.name, project_id: form.project_id || null,
+        contract_date: form.contract_date || null,
+        execute_date: form.execute_date || null,
+        status: form.status, memo: form.memo,
+      }).eq('id', form.id)
 
-    if (fp) {
-      await supabase.from('finance_items').insert([{
-        finance_project_id: fp.id,
+      await supabase.from('finance_items').update({
         total_estimate: Number(itemForm.total_estimate) || 0,
         tax_amount: Number(itemForm.tax_amount) || 0,
         instructor_fee: Number(itemForm.instructor_fee) || 0,
@@ -91,8 +92,32 @@ export default function Finance() {
         other_cost: Number(itemForm.other_cost) || 0,
         other_cost_memo: itemForm.other_cost_memo,
         received_amount: Number(itemForm.received_amount) || 0,
-      }])
+      }).eq('finance_project_id', form.id)
+      
+    } else {
+      // Insert new
+      const { data: fp } = await supabase.from('finance_projects').insert([{
+        name: form.name, project_id: form.project_id || null,
+        contract_date: form.contract_date || null,
+        execute_date: form.execute_date || null,
+        status: form.status, memo: form.memo,
+      }]).select().single()
+
+      if (fp) {
+        await supabase.from('finance_items').insert([{
+          finance_project_id: fp.id,
+          total_estimate: Number(itemForm.total_estimate) || 0,
+          tax_amount: Number(itemForm.tax_amount) || 0,
+          instructor_fee: Number(itemForm.instructor_fee) || 0,
+          operation_cost: Number(itemForm.operation_cost) || 0,
+          labor_cost: Number(itemForm.labor_cost) || 0,
+          other_cost: Number(itemForm.other_cost) || 0,
+          other_cost_memo: itemForm.other_cost_memo,
+          received_amount: Number(itemForm.received_amount) || 0,
+        }])
+      }
     }
+    
     setShowAdd(false)
     setForm({ name: '', project_id: '', contract_date: '', execute_date: '', status: '계약전', memo: '' })
     setItemForm({ total_estimate: '', tax_amount: '', instructor_fee: '', operation_cost: '', labor_cost: '', other_cost: '', other_cost_memo: '', received_amount: '' })
@@ -139,8 +164,8 @@ export default function Finance() {
             { label: '순 수익', value: fmt(summary.net_revenue), color: 'var(--accent)' },
             { label: '총 지출', value: fmt(summary.total_expense), color: 'var(--danger)' },
             { label: '순이익', value: fmt(summary.net_profit), color: summary.net_profit >= 0 ? 'var(--success)' : 'var(--danger)' },
-            { label: '수금 완료', value: fmt(summary.received_amount), color: 'var(--success)' },
-            { label: '미수금', value: fmt(summary.unpaid_amount), color: 'var(--confirmed)' },
+            { label: '입금 완료', value: fmt(summary.received_amount), color: 'var(--success)' },
+            { label: '미입금', value: fmt(summary.unpaid_amount), color: 'var(--confirmed)' },
           ].map(s => (
             <div key={s.label} className="card stat-card">
               <div className="stat-value" style={{ color: s.color, fontSize: 20 }}>{s.value}</div>
@@ -166,8 +191,8 @@ export default function Finance() {
                 <th>인건비</th>
                 <th>기타</th>
                 <th>순이익</th>
-                <th>수금</th>
-                <th>미수금</th>
+                <th>입금</th>
+                <th>미입금</th>
                 <th>수익률</th>
               </tr>
             </thead>
@@ -243,7 +268,7 @@ export default function Finance() {
                 { key: 'operation_cost', label: '운영비' },
                 { key: 'labor_cost', label: '인건비 (임팀)' },
                 { key: 'other_cost', label: '기타비용' },
-                { key: 'received_amount', label: '수금액' },
+                { key: 'received_amount', label: '입금액' },
               ].map(f => (
                 <div key={f.key} className="form-group">
                   <label className="form-label">{f.label}</label>
@@ -269,7 +294,32 @@ export default function Finance() {
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title">{showDetail.project_name}</div>
-              <button className="modal-close" onClick={() => setShowDetail(null)}>×</button>
+              <div className="flex-center gap-8">
+                <button className="btn btn-secondary btn-sm" onClick={() => {
+                  setForm({
+                    id: showDetail.id,
+                    name: showDetail.project_name,
+                    project_id: showDetail.project_id || '',
+                    contract_date: showDetail.contract_date || '',
+                    execute_date: showDetail.execute_date || '',
+                    status: showDetail.status || '계약전',
+                    memo: showDetail.memo || ''
+                  })
+                  setItemForm({
+                    total_estimate: showDetail.total_estimate || '',
+                    tax_amount: showDetail.tax_amount || '',
+                    instructor_fee: showDetail.instructor_fee || '',
+                    operation_cost: showDetail.operation_cost || '',
+                    labor_cost: showDetail.labor_cost || '',
+                    other_cost: showDetail.other_cost || '',
+                    other_cost_memo: showDetail.other_cost_memo || '',
+                    received_amount: showDetail.received_amount || ''
+                  })
+                  setShowDetail(null)
+                  setShowAdd(true)
+                }}>수정</button>
+                <button className="modal-close" onClick={() => setShowDetail(null)}>×</button>
+              </div>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
               <tbody>
@@ -286,8 +336,8 @@ export default function Finance() {
                   ['기타비용', fmt(showDetail.other_cost)],
                   ['총 지출', fmt(showDetail.total_expense)],
                   ['순이익', <span style={{ fontWeight: 700, color: fmtNum(showDetail.net_profit) >= 0 ? 'var(--success)' : 'var(--danger)' }}>{fmt(showDetail.net_profit)}</span>],
-                  ['수금액', fmt(showDetail.received_amount)],
-                  ['미수금', fmt(showDetail.unpaid_amount)],
+                  ['입금액', fmt(showDetail.received_amount)],
+                  ['미입금', fmt(showDetail.unpaid_amount)],
                   ['수익률', (showDetail.profit_margin ?? '-') + (showDetail.profit_margin != null ? '%' : '')],
                 ].map(([label, value]) => (
                   <tr key={label}>

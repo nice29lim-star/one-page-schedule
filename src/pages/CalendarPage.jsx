@@ -7,6 +7,7 @@ const EVENT_STYLE = {
   tm: { bg: '#EFF6FF', color: '#1D4ED8', label: 'TM' },
   sales: { bg: '#ECFDF5', color: '#065F46', label: '영업' },
   dm: { bg: '#F5F3FF', color: '#5B21B6', label: 'DM' },
+  plan: { bg: '#FFF1F2', color: '#E11D48', label: '기획' },
   confirmed: { bg: '#FFFBEB', color: '#92400E', label: '확정' },
 }
 
@@ -29,13 +30,22 @@ export default function CalendarPage() {
       from = format(ws, 'yyyy-MM-dd')
       to = format(we, 'yyyy-MM-dd')
     }
-    const { data } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .gte('event_date', from)
-      .lte('event_date', to)
-      .order('event_date')
-    setEvents(data || [])
+    const [{ data: cal }, { data: dt }] = await Promise.all([
+      supabase.from('calendar_events').select('*').gte('event_date', from).lte('event_date', to).order('event_date'),
+      supabase.from('daily_tasks').select('*').gte('task_date', from).lte('task_date', to)
+    ])
+    
+    const dtMapped = (dt || []).map(t => ({
+      source_id: t.id,
+      event_type: t.type,
+      event_date: t.task_date,
+      content: t.content,
+      assigned_to: t.assigned_to,
+      school_name: '일반 할 일'
+    }))
+    
+    const combined = [...(cal || []), ...dtMapped].sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+    setEvents(combined)
   }
 
   function getEventsForDay(day) {
@@ -111,15 +121,15 @@ export default function CalendarPage() {
                 {dayEvents.map((e, i) => {
                   const s = EVENT_STYLE[e.event_type] || {}
                   return (
-                    <div
-                      key={i}
-                      className="cal-event"
-                      style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}30` }}
-                      onClick={() => setSelected(e)}
-                      title={`${s.label} · ${e.school_name} · ${e.assigned_to || ''}`}
-                    >
-                      {e.school_name} ({s.label}{e.assigned_to ? ` / ${e.assigned_to}` : ''})
-                    </div>
+                      <div
+                        key={i}
+                        className={`cal-event${e.school_name === '일반 할 일' ? ' cal-event-daily' : ''}`}
+                        style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}30` }}
+                        onClick={() => setSelected(e)}
+                        title={`${s.label} · ${e.school_name} · ${e.assigned_to || ''}`}
+                      >
+                        {e.school_name} ({s.label}{e.assigned_to ? ` / ${e.assigned_to}` : ''})
+                      </div>
                   )
                 })}
               </div>
