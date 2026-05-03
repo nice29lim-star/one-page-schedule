@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase, MEMBERS } from '../lib/supabase.js'
 
-const TYPE_LABEL = { tm: 'TM', sales: '영업', dm: 'DM' }
-const TYPE_COLOR = { tm: 'badge-tm', sales: 'badge-sales', dm: 'badge-dm' }
+const TYPE_LABEL = { tm: 'TM', sales: '영업', dm: 'DM', plan: '기획' }
+const TYPE_COLOR = { tm: 'badge-tm', sales: 'badge-sales', dm: 'badge-dm', plan: 'badge-plan' }
 
 export default function TomorrowTasks() {
   const [tasks, setTasks] = useState([])
@@ -95,7 +95,7 @@ export default function TomorrowTasks() {
             <div className="form-group">
               <label className="form-label">유형</label>
               <div className="flex gap-8">
-                {['tm', 'sales', 'dm'].map(t => (
+                {['tm', 'sales', 'dm', 'plan'].map(t => (
                   <button key={t} className={`btn ${form.type === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setForm(f => ({ ...f, type: t }))}>
                     {TYPE_LABEL[t]}
                   </button>

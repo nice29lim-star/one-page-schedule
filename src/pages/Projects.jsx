@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, MEMBERS } from '../lib/supabase.js'
-import { generateTmComment, generateSalesComment, generateDmComment } from '../lib/gemini.js'
+import { generateTmComment, generateSalesComment, generateDmComment, generatePlanComment } from '../lib/gemini.js'
 
 export default function Projects() {
   const [projects, setProjects] = useState([])
@@ -43,6 +43,9 @@ export default function Projects() {
         } else if (form.type === 'DM') {
           const ai = await generateDmComment(form.memo, form.next_contact_date, '')
           await supabase.from('dm_logs').insert([{ project_id: newProject.id, sent_by: form.assigned_to, dm_content: form.memo, sent_at: new Date().toISOString().split('T')[0], follow_call_date: form.next_contact_date || null, ai_comment: ai }])
+        } else if (form.type === '기획') {
+          const ai = await generatePlanComment(form.memo, form.next_contact_date, '')
+          await supabase.from('plan_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, next_contact_date: form.next_contact_date || null, ai_comment: ai }])
         }
       }
 
@@ -124,6 +127,7 @@ export default function Projects() {
                 <option value="TM">TM</option>
                 <option value="영업">영업</option>
                 <option value="DM">DM</option>
+                <option value="기획">기획</option>
               </select>
             </div>
             <div className="form-group">

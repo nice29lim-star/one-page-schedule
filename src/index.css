@@ -17,6 +17,8 @@
   --sales-bg: #ECFDF5;
   --dm: #8B5CF6;
   --dm-bg: #F5F3FF;
+  --plan: #E11D48;
+  --plan-bg: #FFF1F2;
   --confirmed: #F59E0B;
   --confirmed-bg: #FFFBEB;
   --danger: #EF4444;
@@ -151,6 +153,7 @@ body {
 .badge-tm { background: var(--tm-bg); color: var(--tm); }
 .badge-sales { background: var(--sales-bg); color: var(--sales); }
 .badge-dm { background: var(--dm-bg); color: var(--dm); }
+.badge-plan { background: var(--plan-bg); color: var(--plan); }
 .badge-confirmed { background: var(--confirmed-bg); color: var(--confirmed); }
 
 /* 체크박스 */

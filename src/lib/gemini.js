@@ -20,61 +20,30 @@ async function callGemini(systemPrompt, userContent) {
 }
 
 export async function generateTmComment(content, nextDate, history = '') {
-  const system = `당신은 진로·디지털 교육 콘텐츠 전문 영업 컨설턴트입니다.
-고객은 중·고등학교 선생님이며, 자사 콘텐츠(진로 프로그램, 디지털 리터러시 과정)를 학교에 도입하도록 설득하는 것이 목표입니다.
-TM 통화 기록을 바탕으로 아래 형식으로 답변하세요.
-
-[이전 통화 요약]
-핵심 내용 2~3줄
-
-[다음 TM 핵심 포인트]
-• 선생님이 보인 관심사나 우려 포인트 중심으로
-• 진로/디지털 콘텐츠 중 어느 쪽에 집중할지
-• 예산·일정 등 실무적 확인 사항
-
-[추천 오프닝 멘트]
-지난 통화를 자연스럽게 이어가는 첫 마디 예시`
-
-  const user = `TM 내용: ${content}\n다음 연락 예정일: ${nextDate}\n${history ? `이전 히스토리:\n${history}` : ''}`
+  const system = `당신은 진로 교육 콘텐츠 영업 컨설턴트입니다. 
+다음 TM 기록을 보고, 다음 통화 시 유용한 조언 2~3문장을 아주 간결하게 코멘트 해주세요. 불필요한 서론/결론은 생략하세요.`
+  const user = `TM 내용: ${content}\n다음 연락일: ${nextDate}\n${history ? `히스토리:\n${history}` : ''}`
   return callGemini(system, user)
 }
 
 export async function generateSalesComment(content, nextDate, history = '') {
-  const system = `당신은 진로·디지털 교육 콘텐츠 전문 영업 컨설턴트입니다.
-학교 선생님 또는 교감·교장과의 미팅/방문 기록을 분석하여 계약 성사 가능성을 높이는 전략을 제시합니다.
-
-[이전 미팅 요약]
-핵심 논의 내용 2~3줄
-
-[다음 영업 핵심 포인트]
-• 의사결정자(교장·교감·담당 선생님) 공략 방향
-• 경쟁 프로그램 대비 차별점 강조 포인트
-• 계약 전 남은 허들과 대응 전략
-
-[예상 반응 & 대응]
-예상 거절 이유와 재설득 멘트 예시`
-
-  const user = `영업 내용: ${content}\n다음 연락 예정일: ${nextDate}\n${history ? `이전 히스토리:\n${history}` : ''}`
+  const system = `당신은 진로 교육 콘텐츠 영업 컨설턴트입니다.
+다음 미팅/영업 기록을 보고, 계약 성사를 위한 핵심 전략 2~3문장을 아주 간결하게 코멘트 해주세요. 불필요한 서론/결론은 생략하세요.`
+  const user = `영업 내용: ${content}\n다음 연락일: ${nextDate}\n${history ? `히스토리:\n${history}` : ''}`
   return callGemini(system, user)
 }
 
 export async function generateDmComment(dmContent, followDate, history = '') {
-  const system = `당신은 진로·디지털 교육 콘텐츠 전문 영업 컨설턴트입니다.
-학교 선생님에게 이메일(DM)을 발송한 후, 확인 전화를 할 때 어떻게 대화를 이끌어야 하는지 전략을 제시합니다.
+  const system = `당신은 진로 교육 콘텐츠 영업 컨설턴트입니다.
+다음 발송된 DM 내용을 보고, 확인 전화 시 활용할 핵심 멘트 2~3문장을 아주 간결하게 코멘트 해주세요. 불필요한 서론/결론은 생략하세요.`
+  const user = `DM 내용: ${dmContent}\n확인 전화일: ${followDate}\n${history ? `히스토리:\n${history}` : ''}`
+  return callGemini(system, user)
+}
 
-[DM 내용 요약]
-어떤 콘텐츠/제안을 담았는지 2줄 요약
-
-[확인 전화 핵심 포인트]
-• DM을 읽었는지 자연스럽게 확인하는 방법
-• 관심 여부를 파악하는 질문 예시
-• 다음 단계(미팅 또는 추가 TM)로 유도하는 멘트
-
-[주의사항]
-• 선생님이 바쁠 경우 대화를 짧게 마무리하는 방법
-• 읽지 않았을 경우 재발송 또는 요약 설명 방법`
-
-  const user = `DM 내용: ${dmContent}\n확인 전화 예정일: ${followDate}\n${history ? `이전 히스토리:\n${history}` : ''}`
+export async function generatePlanComment(content, nextDate, history = '') {
+  const system = `당신은 진로 교육 콘텐츠 영업 컨설턴트입니다.
+다음 기획/전략 기록을 보고, 실행 성공률을 높일 수 있는 피드백 2~3문장을 아주 간결하게 코멘트 해주세요. 불필요한 서론/결론은 생략하세요.`
+  const user = `기획 내용: ${content}\n다음 실행일: ${nextDate}\n${history ? `히스토리:\n${history}` : ''}`
   return callGemini(system, user)
 }
 

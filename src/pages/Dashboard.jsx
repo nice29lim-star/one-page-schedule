@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { supabase, MEMBERS } from '../lib/supabase.js'
 
-const TYPE_LABEL = { tm: 'TM', sales: '영업', dm: 'DM' }
-const TYPE_COLOR = { tm: 'badge-tm', sales: 'badge-sales', dm: 'badge-dm' }
+const TYPE_LABEL = { tm: 'TM', sales: '영업', dm: 'DM', plan: '기획' }
+const TYPE_COLOR = { tm: 'badge-tm', sales: 'badge-sales', dm: 'badge-dm', plan: 'badge-plan' }
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([])

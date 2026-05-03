@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase, MEMBERS } from '../lib/supabase.js'
-import { generateTmComment, generateSalesComment, generateDmComment } from '../lib/gemini.js'
+import { generateTmComment, generateSalesComment, generateDmComment, generatePlanComment } from '../lib/gemini.js'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-const TABS = ['TM', '영업', 'DM', '달력']
+const TABS = ['TM', '영업', 'DM', '기획', '달력']
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function LogCard({ log, type, onDelete }) {
-  const typeColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6' }
+  const typeColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', plan: '#E11D48' }
   const color = typeColor[type]
   return (
     <div className="card card-sm mb-16" style={{ borderLeft: `3px solid ${color}` }}>
@@ -51,6 +51,7 @@ export default function ProjectDetail() {
   const [tmLogs, setTmLogs] = useState([])
   const [salesLogs, setSalesLogs] = useState([])
   const [dmLogs, setDmLogs] = useState([])
+  const [planLogs, setPlanLogs] = useState([])
   const [calMonth, setCalMonth] = useState(new Date())
   const [calEvents, setCalEvents] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -68,16 +69,18 @@ export default function ProjectDetail() {
   useEffect(() => { fetchCalendar() }, [calMonth, id])
 
   async function fetchAll() {
-    const [{ data: p }, { data: tm }, { data: s }, { data: dm }] = await Promise.all([
+    const [{ data: p }, { data: tm }, { data: s }, { data: dm }, { data: pl }] = await Promise.all([
       supabase.from('projects').select('*').eq('id', id).single(),
       supabase.from('tm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('sales_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('dm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+      supabase.from('plan_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
     ])
     setProject(p)
     setTmLogs(tm || [])
     setSalesLogs(s || [])
     setDmLogs(dm || [])
+    setPlanLogs(pl || [])
   }
 
   async function fetchCalendar() {
@@ -122,6 +125,14 @@ export default function ProjectDetail() {
           follow_called_by: form.follow_call_done ? form.follow_called_by : null,
           ai_comment: ai,
         }])
+      } else if (tab === '기획') {
+        const history = planLogs.map(l => l.content).join('\n')
+        const ai = await generatePlanComment(form.content, form.next_contact_date, history)
+        await supabase.from('plan_logs').insert([{
+          project_id: id, assigned_to: form.assigned_to,
+          content: form.content, next_contact_date: form.next_contact_date || null,
+          ai_comment: ai,
+        }])
       }
       setShowForm(false)
       setForm({ assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
@@ -158,8 +169,8 @@ export default function ProjectDetail() {
   // 달력 렌더링
   const monthDays = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) })
   const startPad = getDay(startOfMonth(calMonth))
-  const eventColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', confirmed: '#F59E0B' }
-  const eventLabel = { tm: 'TM', sales: '영업', dm: 'DM', confirmed: '확정' }
+  const eventColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', plan: '#E11D48', confirmed: '#F59E0B' }
+  const eventLabel = { tm: 'TM', sales: '영업', dm: 'DM', plan: '기획', confirmed: '확정' }
 
   if (!project) return <div className="loading"><div className="spinner" /></div>
 
@@ -204,6 +215,14 @@ export default function ProjectDetail() {
         <div>
           {dmLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>DM 기록이 없어요</div>
             : dmLogs.map(l => <LogCard key={l.id} log={l} type="dm" onDelete={id => deleteLog('dm_logs', id)} />)}
+        </div>
+      )}
+
+      {/* 기획 탭 */}
+      {tab === '기획' && (
+        <div>
+          {planLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>기획 기록이 없어요</div>
+            : planLogs.map(l => <LogCard key={l.id} log={l} type="plan" onDelete={id => deleteLog('plan_logs', id)} />)}
         </div>
       )}
 
