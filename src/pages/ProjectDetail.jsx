@@ -5,7 +5,7 @@ import { generateTmComment, generateSalesComment, generateDmComment, generatePla
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-const TABS = ['TM', '영업', 'DM', '기획', '달력']
+const TABS = ['TM', '영업', 'DM', '기획']
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function LogCard({ log, type, onDelete }) {
@@ -52,11 +52,8 @@ export default function ProjectDetail() {
   const [salesLogs, setSalesLogs] = useState([])
   const [dmLogs, setDmLogs] = useState([])
   const [planLogs, setPlanLogs] = useState([])
-  const [calMonth, setCalMonth] = useState(new Date())
-  const [calEvents, setCalEvents] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState(null)
   const [form, setForm] = useState({
     record_date: new Date().toISOString().split('T')[0],
     assigned_to: MEMBERS[0], sent_by: MEMBERS[0],
@@ -67,7 +64,6 @@ export default function ProjectDetail() {
   })
 
   useEffect(() => { fetchAll() }, [id])
-  useEffect(() => { fetchCalendar() }, [calMonth, id])
 
   async function fetchAll() {
     const [{ data: p }, { data: tm }, { data: s }, { data: dm }, { data: pl }] = await Promise.all([
@@ -84,17 +80,7 @@ export default function ProjectDetail() {
     setPlanLogs(pl || [])
   }
 
-  async function fetchCalendar() {
-    const from = format(startOfMonth(calMonth), 'yyyy-MM-dd')
-    const to = format(endOfMonth(calMonth), 'yyyy-MM-dd')
-    const { data } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .eq('project_id', id)
-      .gte('event_date', from)
-      .lte('event_date', to)
-    setCalEvents(data || [])
-  }
+
 
   async function submitForm() {
     setAiLoading(true)
@@ -142,7 +128,6 @@ export default function ProjectDetail() {
       setShowForm(false)
       setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
       fetchAll()
-      fetchCalendar() // 새 기록 추가 시 달력도 새로고침
     } catch (e) {
       alert('저장 중 오류가 발생했어요: ' + e.message)
     }
@@ -153,7 +138,6 @@ export default function ProjectDetail() {
     if (!confirm('삭제할까요?')) return
     await supabase.from(table).delete().eq('id', logId)
     fetchAll()
-    fetchCalendar() // 달력 데이터도 함께 새로고침
   }
 
   async function deleteProject() {
@@ -170,12 +154,6 @@ export default function ProjectDetail() {
       alert('프로젝트 삭제 중 오류 발생: ' + e.message)
     }
   }
-
-  // 달력 렌더링
-  const monthDays = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) })
-  const startPad = getDay(startOfMonth(calMonth))
-  const eventColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', plan: '#E11D48', confirmed: '#F59E0B' }
-  const eventLabel = { tm: 'TM', sales: '영업', dm: 'DM', plan: '기획', confirmed: '확정' }
 
   if (!project) return <div className="loading"><div className="spinner" /></div>
 
@@ -231,34 +209,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* 달력 탭 */}
-      {tab === '달력' && (
-        <div>
-          <div className="flex-between mb-16">
-            <button className="btn btn-secondary btn-sm" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1))}>← 이전달</button>
-            <div style={{ fontWeight: 600 }}>{format(calMonth, 'yyyy년 MM월')}</div>
-            <button className="btn btn-secondary btn-sm" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1))}>다음달 →</button>
-          </div>
-          <div className="calendar-grid">
-            {DAYS.map(d => <div key={d} className="calendar-header-cell">{d}</div>)}
-            {Array.from({ length: startPad }).map((_, i) => <div key={`pad-${i}`} className="calendar-day other-month" />)}
-            {monthDays.map(day => {
-              const dayEvents = calEvents.filter(e => e.event_date === format(day, 'yyyy-MM-dd'))
-              const isToday = isSameDay(day, new Date())
-              return (
-                <div key={day.toString()} className={`calendar-day${isToday ? ' today' : ''}`}>
-                  <div className={`day-number${isToday ? ' today-num' : ''}`}>{format(day, 'd')}</div>
-                  {dayEvents.map(e => (
-                    <div key={e.source_id} className="cal-event" style={{ background: eventColor[e.event_type] + '20', color: eventColor[e.event_type], cursor: 'pointer' }} onClick={() => setSelectedEvent(e)}>
-                      {eventLabel[e.event_type]} {e.assigned_to && `(${e.assigned_to})`}
-                    </div>
-                  ))}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+
 
       {/* 입력 모달 */}
       {showForm && (
@@ -347,29 +298,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* 달력 이벤트 상세 팝업 */}
-      {selectedEvent && (
-        <div className="modal-overlay" onClick={() => setSelectedEvent(null)}>
-          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="flex-center gap-8">
-                <span style={{ background: eventColor[selectedEvent.event_type] + '20', color: eventColor[selectedEvent.event_type], padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                  {eventLabel[selectedEvent.event_type]}
-                </span>
-                <div className="modal-title">{project.name}</div>
-              </div>
-              <button className="modal-close" onClick={() => setSelectedEvent(null)}>×</button>
-            </div>
-            <table style={{ width: '100%', fontSize: 13.5, borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr><td style={{ padding: '6px 0', color: 'var(--text2)', width: 80 }}>날짜</td><td style={{ fontWeight: 500 }}>{selectedEvent.event_date}</td></tr>
-                {selectedEvent.assigned_to && <tr><td style={{ padding: '6px 0', color: 'var(--text2)' }}>담당자</td><td style={{ fontWeight: 500 }}>{selectedEvent.assigned_to}</td></tr>}
-                <tr><td style={{ padding: '6px 0', color: 'var(--text2)', verticalAlign: 'top', paddingTop: 10 }}>내용</td><td style={{ paddingTop: 10, lineHeight: 1.6 }}>{selectedEvent.content}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
