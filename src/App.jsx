@@ -26,6 +26,30 @@ export default function App() {
 
   useEffect(() => {
     fetchTodayTasks()
+    
+    const channel = supabase.channel('daily_tasks_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_tasks' }, () => {
+        fetchTodayTasks()
+      })
+      .subscribe()
+      
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      const pending = todayTasks.filter(t => !t.is_done).length
+      if (pending > 0) {
+        navigator.setAppBadge(pending).catch(console.error)
+      } else {
+        navigator.clearAppBadge().catch(console.error)
+      }
+    }
+  }, [todayTasks])
+
+  useEffect(() => {
     // 앱 실행 시 팝업
     const shown = sessionStorage.getItem('popup_shown')
     if (!shown) {
