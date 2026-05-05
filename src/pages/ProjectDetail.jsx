@@ -263,28 +263,7 @@ export default function ProjectDetail() {
               <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
             </div>
 
-            {tab !== 'DM' ? (
-              <>
-                <div className="form-group">
-                  <label className="form-label">작성 일자</label>
-                  <input type="date" className="form-input" value={form.record_date} onChange={e => setForm(f => ({ ...f, record_date: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">담당자</label>
-                  <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
-                    {MEMBERS.map(m => <option key={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{tab} 내용 *</label>
-                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder={tab === 'TM' ? '통화 내용을 입력하세요' : '미팅/방문 내용을 입력하세요'} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">예정일 (언제 할지)</label>
-                  <input type="date" className="form-input" value={form.next_contact_date} onChange={e => setForm(f => ({ ...f, next_contact_date: e.target.value }))} />
-                </div>
-              </>
-            ) : (
+            {tab === 'DM' ? (
               <>
                 <div className="form-group">
                   <label className="form-label">작성 일자</label>
@@ -351,37 +330,19 @@ export default function ProjectDetail() {
                   <input type="date" className="form-input" value={form.record_date} onChange={e => setForm(f => ({ ...f, record_date: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">발송자</label>
-                  <select className="form-select" value={form.sent_by} onChange={e => setForm(f => ({ ...f, sent_by: e.target.value }))}>
+                  <label className="form-label">담당자</label>
+                  <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
                     {MEMBERS.map(m => <option key={m}>{m}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">발송일</label>
-                  <input type="date" className="form-input" value={form.sent_at} onChange={e => setForm(f => ({ ...f, sent_at: e.target.value }))} />
+                  <label className="form-label">{tab} 내용 *</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder={tab === 'TM' ? '통화 내용을 입력하세요' : '미팅/방문 내용을 입력하세요'} value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">DM 내용 *</label>
-                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="어떤 내용으로 DM을 보냈는지 입력하세요" value={form.dm_content} onChange={e => setForm(f => ({ ...f, dm_content: e.target.value }))} />
+                  <label className="form-label">예정일 (언제 할지)</label>
+                  <input type="date" className="form-input" value={form.next_contact_date} onChange={e => setForm(f => ({ ...f, next_contact_date: e.target.value }))} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">확인 전화 예정일</label>
-                  <input type="date" className="form-input" value={form.follow_call_date} onChange={e => setForm(f => ({ ...f, follow_call_date: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label className="checkbox-label">
-                    <input type="checkbox" checked={form.follow_call_done} onChange={e => setForm(f => ({ ...f, follow_call_done: e.target.checked }))} />
-                    확인 전화 완료
-                  </label>
-                </div>
-                {form.follow_call_done && (
-                  <div className="form-group">
-                    <label className="form-label">전화한 사람</label>
-                    <select className="form-select" value={form.follow_called_by} onChange={e => setForm(f => ({ ...f, follow_called_by: e.target.value }))}>
-                      {MEMBERS.map(m => <option key={m}>{m}</option>)}
-                    </select>
-                  </div>
-                )}
               </>
             )}
 
