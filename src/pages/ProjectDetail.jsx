@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+// Trigger Vercel rebuild - 2026-05-05 17:35
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase, MEMBERS } from '../lib/supabase.js'
 import { generateTmComment, generateSalesComment, generateDmComment, generatePlanComment } from '../lib/gemini.js'
