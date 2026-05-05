@@ -53,6 +53,7 @@ export default function ProjectDetail() {
   const [dmLogs, setDmLogs] = useState([])
   const [planLogs, setPlanLogs] = useState([])
   const [confirmedTasks, setConfirmedTasks] = useState([])
+  const [editingLogId, setEditingLogId] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [form, setForm] = useState({
@@ -133,14 +134,20 @@ export default function ProjectDetail() {
           ai_comment: ai,
         }])
       } else if (tab === '확정') {
-        await supabase.from('daily_tasks').insert([{
+        const payload = {
           type: 'confirmed',
           assigned_to: form.assigned_to,
           content: `[${project.name}] ${form.confirmed_time} - ${form.content}`,
           task_date: form.confirmed_date,
-        }])
+        }
+        if (editingLogId) {
+          await supabase.from('daily_tasks').update(payload).eq('id', editingLogId)
+        } else {
+          await supabase.from('daily_tasks').insert([payload])
+        }
       }
       setShowForm(false)
+      setEditingLogId(null)
       setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0], confirmed_date: new Date().toISOString().split('T')[0], confirmed_time: '14:00' })
       fetchAll()
     } catch (e) {
@@ -159,6 +166,22 @@ export default function ProjectDetail() {
     if (!confirm('삭제할까요?')) return
     await supabase.from('daily_tasks').delete().eq('id', logId)
     fetchAll()
+  }
+
+  function startEditConfirmed(log) {
+    const match = log.content.match(/^\[.*?\] (.*?) - (.*)/)
+    const time = match ? match[1] : '14:00'
+    const content = match ? match[2] : log.content.replace(`[${project.name}] `, '')
+    
+    setForm({
+      ...form,
+      confirmed_date: log.task_date,
+      confirmed_time: time,
+      content: content,
+      assigned_to: log.assigned_to
+    })
+    setEditingLogId(log.id)
+    setShowForm(true)
   }
 
   async function deleteProject() {
@@ -190,7 +213,7 @@ export default function ProjectDetail() {
             </div>
             <div className="page-subtitle">담당: {project.assigned_to} {project.memo && `· ${project.memo}`}</div>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ {tab} 추가</button>
+          <button className="btn btn-primary" onClick={() => { setEditingLogId(null); setShowForm(true); }}>+ {tab} 추가</button>
         </div>
       </div>
 
@@ -243,7 +266,10 @@ export default function ProjectDetail() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--confirmed)' }}>{l.assigned_to}</span>
                       <span className="text-sm" style={{ fontWeight: 600 }}>교육일: {l.task_date}</span>
                     </div>
-                    <button className="btn btn-ghost btn-sm" onClick={() => deleteConfirmed(l.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
+                    <div className="flex-center gap-8">
+                      <button className="btn btn-ghost btn-sm" onClick={() => startEditConfirmed(l)}>수정</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => deleteConfirmed(l.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
+                    </div>
                   </div>
                   <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>{displayContent}</div>
                 </div>
@@ -259,8 +285,8 @@ export default function ProjectDetail() {
         <div className="modal-overlay" onClick={() => setShowForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">{tab} 추가</div>
-              <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
+              <div className="modal-title">{editingLogId ? `${tab} 수정` : `${tab} 추가`}</div>
+              <button className="modal-close" onClick={() => { setShowForm(false); setEditingLogId(null); }}>×</button>
             </div>
 
             {tab === 'DM' ? (
