@@ -46,6 +46,13 @@ export default function Projects() {
         } else if (form.type === '기획') {
           const ai = await generatePlanComment(form.memo, form.next_contact_date, '')
           await supabase.from('plan_logs').insert([{ project_id: newProject.id, assigned_to: form.assigned_to, content: form.memo, next_contact_date: form.next_contact_date || null, ai_comment: ai }])
+        } else if (form.type === '확정') {
+          await supabase.from('daily_tasks').insert([{
+            type: 'confirmed',
+            assigned_to: form.assigned_to,
+            content: `[${newProject.name}] ${form.memo}`,
+            task_date: form.next_contact_date || new Date().toISOString().split('T')[0]
+          }])
         }
       }
 
@@ -67,7 +74,7 @@ export default function Projects() {
       <div className="page-header flex-between">
         <div>
           <div className="page-title">프로젝트</div>
-          <div className="page-subtitle">학교 단위로 TM·영업·DM을 관리해요</div>
+          <div className="page-subtitle">학교 단위로 TM·영업·DM·확정을 관리해요</div>
         </div>
         <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ 학교 추가</button>
       </div>
@@ -128,6 +135,7 @@ export default function Projects() {
                 <option value="영업">영업</option>
                 <option value="DM">DM</option>
                 <option value="기획">기획</option>
+                <option value="확정">확정</option>
               </select>
             </div>
             <div className="form-group">

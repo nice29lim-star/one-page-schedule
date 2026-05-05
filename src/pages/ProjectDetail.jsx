@@ -5,7 +5,7 @@ import { generateTmComment, generateSalesComment, generateDmComment, generatePla
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-const TABS = ['TM', '영업', 'DM', '기획']
+const TABS = ['TM', '영업', 'DM', '기획', '확정']
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function LogCard({ log, type, onDelete }) {
@@ -52,6 +52,7 @@ export default function ProjectDetail() {
   const [salesLogs, setSalesLogs] = useState([])
   const [dmLogs, setDmLogs] = useState([])
   const [planLogs, setPlanLogs] = useState([])
+  const [confirmedTasks, setConfirmedTasks] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [form, setForm] = useState({
@@ -61,23 +62,30 @@ export default function ProjectDetail() {
     next_contact_date: '', follow_call_date: '',
     sent_at: new Date().toISOString().split('T')[0],
     follow_call_done: false, follow_called_by: MEMBERS[0],
+    confirmed_date: new Date().toISOString().split('T')[0],
+    confirmed_time: '14:00',
   })
 
   useEffect(() => { fetchAll() }, [id])
 
   async function fetchAll() {
-    const [{ data: p }, { data: tm }, { data: s }, { data: dm }, { data: pl }] = await Promise.all([
-      supabase.from('projects').select('*').eq('id', id).single(),
+    const { data: proj } = await supabase.from('projects').select('*').eq('id', id).single()
+    if (!proj) return
+
+    const [tm, s, dm, pl, conf] = await Promise.all([
       supabase.from('tm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('sales_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('dm_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
       supabase.from('plan_logs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+      supabase.from('daily_tasks').select('*').eq('type', 'confirmed').ilike('content', `[${proj.name}]%`).order('task_date', { ascending: false }),
     ])
-    setProject(p)
-    setTmLogs(tm || [])
-    setSalesLogs(s || [])
-    setDmLogs(dm || [])
-    setPlanLogs(pl || [])
+
+    setProject(proj)
+    setTmLogs(tm.data || [])
+    setSalesLogs(s.data || [])
+    setDmLogs(dm.data || [])
+    setPlanLogs(pl.data || [])
+    setConfirmedTasks(conf.data || [])
   }
 
 
@@ -124,9 +132,16 @@ export default function ProjectDetail() {
           created_at: new Date(form.record_date).toISOString(),
           ai_comment: ai,
         }])
+      } else if (tab === '확정') {
+        await supabase.from('daily_tasks').insert([{
+          type: 'confirmed',
+          assigned_to: form.assigned_to,
+          content: `[${project.name}] ${form.confirmed_time} - ${form.content}`,
+          task_date: form.confirmed_date,
+        }])
       }
       setShowForm(false)
-      setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0] })
+      setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0], confirmed_date: new Date().toISOString().split('T')[0], confirmed_time: '14:00' })
       fetchAll()
     } catch (e) {
       alert('저장 중 오류가 발생했어요: ' + e.message)
@@ -137,6 +152,12 @@ export default function ProjectDetail() {
   async function deleteLog(table, logId) {
     if (!confirm('삭제할까요?')) return
     await supabase.from(table).delete().eq('id', logId)
+    fetchAll()
+  }
+
+  async function deleteConfirmed(logId) {
+    if (!confirm('삭제할까요?')) return
+    await supabase.from('daily_tasks').delete().eq('id', logId)
     fetchAll()
   }
 
@@ -206,6 +227,28 @@ export default function ProjectDetail() {
         <div>
           {planLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>기획 기록이 없어요</div>
             : planLogs.map(l => <LogCard key={l.id} log={l} type="plan" onDelete={id => deleteLog('plan_logs', id)} />)}
+        </div>
+      )}
+
+      {/* 확정 탭 */}
+      {tab === '확정' && (
+        <div>
+          {confirmedTasks.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>확정된 일정이 없어요</div>
+            : confirmedTasks.map(l => {
+              const displayContent = l.content.replace(`[${project.name}] `, '')
+              return (
+                <div key={l.id} className="card card-sm mb-16" style={{ borderLeft: `3px solid var(--confirmed)` }}>
+                  <div className="flex-between mb-8">
+                    <div className="flex-center gap-8">
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--confirmed)' }}>{l.assigned_to}</span>
+                      <span className="text-sm" style={{ fontWeight: 600 }}>교육일: {l.task_date}</span>
+                    </div>
+                    <button className="btn btn-ghost btn-sm" onClick={() => deleteConfirmed(l.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
+                  </div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>{displayContent}</div>
+                </div>
+              )
+            })}
         </div>
       )}
 
@@ -280,9 +323,69 @@ export default function ProjectDetail() {
                   </div>
                 )}
               </>
+            ) : tab === '확정' ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">교육 확정 일자 *</label>
+                  <input type="date" className="form-input" value={form.confirmed_date} onChange={e => setForm(f => ({ ...f, confirmed_date: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">교육 시간 *</label>
+                  <input type="time" className="form-input" value={form.confirmed_time} onChange={e => setForm(f => ({ ...f, confirmed_time: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">담당 강사/담당자</label>
+                  <select className="form-select" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}>
+                    {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">상세 내용 (교육명 등)</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="확정된 교육 내용을 입력하세요" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">작성 일자</label>
+                  <input type="date" className="form-input" value={form.record_date} onChange={e => setForm(f => ({ ...f, record_date: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">발송자</label>
+                  <select className="form-select" value={form.sent_by} onChange={e => setForm(f => ({ ...f, sent_by: e.target.value }))}>
+                    {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">발송일</label>
+                  <input type="date" className="form-input" value={form.sent_at} onChange={e => setForm(f => ({ ...f, sent_at: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">DM 내용 *</label>
+                  <textarea className="form-textarea" style={{ minHeight: 100 }} placeholder="어떤 내용으로 DM을 보냈는지 입력하세요" value={form.dm_content} onChange={e => setForm(f => ({ ...f, dm_content: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">확인 전화 예정일</label>
+                  <input type="date" className="form-input" value={form.follow_call_date} onChange={e => setForm(f => ({ ...f, follow_call_date: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={form.follow_call_done} onChange={e => setForm(f => ({ ...f, follow_call_done: e.target.checked }))} />
+                    확인 전화 완료
+                  </label>
+                </div>
+                {form.follow_call_done && (
+                  <div className="form-group">
+                    <label className="form-label">전화한 사람</label>
+                    <select className="form-select" value={form.follow_called_by} onChange={e => setForm(f => ({ ...f, follow_called_by: e.target.value }))}>
+                      {MEMBERS.map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                )}
+              </>
             )}
 
-            {tab !== '기획' && (
+            {tab !== '기획' && tab !== '확정' && (
               <div style={{ background: 'var(--accent-bg)', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8', marginBottom: 16 }}>
                 ✦ 저장 시 Gemini AI가 전략 코멘트를 자동 생성해요
               </div>

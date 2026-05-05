@@ -35,14 +35,28 @@ export default function CalendarPage() {
       supabase.from('daily_tasks').select('*').gte('task_date', from).lte('task_date', to)
     ])
     
-    const dtMapped = (dt || []).map(t => ({
-      source_id: t.id,
-      event_type: t.type,
-      event_date: t.task_date,
-      content: t.content,
-      assigned_to: t.assigned_to,
-      school_name: '일반 할 일'
-    }))
+    const dtMapped = (dt || []).map(t => {
+      let school_name = '일반 할 일'
+      let content = t.content
+      
+      // [학교명] 형식의 확정 일정 파싱
+      if (t.type === 'confirmed') {
+        const match = t.content.match(/^\[(.*?)\] (.*)/)
+        if (match) {
+          school_name = match[1]
+          content = match[2]
+        }
+      }
+
+      return {
+        source_id: t.id,
+        event_type: t.type,
+        event_date: t.task_date,
+        content: content,
+        assigned_to: t.assigned_to,
+        school_name: school_name
+      }
+    })
     
     const combined = [...(cal || []), ...dtMapped].sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
     setEvents(combined)
