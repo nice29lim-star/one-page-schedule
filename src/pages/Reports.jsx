@@ -96,7 +96,7 @@ export default function Reports() {
     zIndex: 1000, padding: 20,
   }
   const modalStyle = {
-    background: 'var(--card)', borderRadius: 16, border: '1px solid var(--border)',
+    background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)',
     width: '100%', maxWidth: 700, maxHeight: '85vh', display: 'flex', flexDirection: 'column',
     boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
   }
