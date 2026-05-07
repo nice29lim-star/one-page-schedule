@@ -10,35 +10,80 @@ const TABS = ['TM', '영업', 'DM', '기획', '확정']
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
 function LogCard({ log, type, onDelete, onEdit }) {
+  const [open, setOpen] = useState(false)
   const typeColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', plan: '#E11D48' }
+  const typeLabel = { tm: 'TM', sales: '영업', dm: 'DM', plan: '기획' }
   const color = typeColor[type]
+  const text = log.content || log.dm_content || ''
+  const preview = text.split('\n')[0].substring(0, 60) + (text.length > 60 || text.includes('\n') ? '...' : '')
+
   return (
-    <div className="card card-sm mb-16" style={{ borderLeft: `3px solid ${color}` }}>
-      <div className="flex-between mb-8">
-        <div className="flex-center gap-8">
-          <span style={{ fontSize: 12, fontWeight: 600, color }}>{log.assigned_to || log.sent_by}</span>
-          {log.next_contact_date && <span className="text-sm text-muted">다음: {log.next_contact_date}</span>}
-          {log.follow_call_date && <span className="text-sm text-muted">확인전화: {log.follow_call_date}</span>}
-          {log.sent_at && <span className="text-sm text-muted">발송: {log.sent_at}</span>}
-        </div>
-        <div className="flex-center gap-8">
-          <span className="text-sm text-muted">{new Date(log.created_at).toLocaleDateString('ko-KR')}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => onEdit(log)} style={{ color: 'var(--accent)', padding: '2px 6px' }}>수정</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => onDelete(log.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
-        </div>
+    <div className="card card-sm mb-8" style={{ borderLeft: `3px solid ${color}`, padding: 0, overflow: 'hidden' }}>
+      {/* 접힌 헤더 - 항상 표시 */}
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+      >
+        <span style={{ fontSize: 11, transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: 'var(--text3)' }}>▶</span>
+        <span style={{ fontSize: 11, fontWeight: 600, background: `${color}18`, color, padding: '1px 7px', borderRadius: 10 }}>{typeLabel[type]}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color }}>{log.assigned_to || log.sent_by}</span>
+        <span className="text-sm text-muted">{new Date(log.created_at).toLocaleDateString('ko-KR')}</span>
+        {log.next_contact_date && <span style={{ fontSize: 11, color: 'var(--text3)' }}>다음: {log.next_contact_date}</span>}
+        {log.follow_call_date && <span style={{ fontSize: 11, color: 'var(--text3)' }}>확인전화: {log.follow_call_date}</span>}
+        {log.ai_comment && <span style={{ fontSize: 10, color: '#6366F1' }}>✦ AI</span>}
+        {!open && <span style={{ flex: 1, fontSize: 12.5, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</span>}
       </div>
-      <div style={{ fontSize: 13.5, lineHeight: 1.6, marginBottom: log.dm_content ? 0 : 8, whiteSpace: 'pre-wrap' }}>
-        {log.content || log.dm_content}
-      </div>
-      {log.follow_call_done && (
-        <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>
-          ✓ 확인전화 완료 {log.follow_called_by && `(${log.follow_called_by})`}
+
+      {/* 펼쳐진 본문 */}
+      {open && (
+        <div style={{ padding: '0 16px 14px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', padding: '12px 0 8px', color: 'var(--text)' }}>
+            {text}
+          </div>
+          {log.follow_call_done && (
+            <div style={{ fontSize: 11, color: 'var(--success)', marginBottom: 8 }}>
+              ✓ 확인전화 완료 {log.follow_called_by && `(${log.follow_called_by})`}
+            </div>
+          )}
+          {log.ai_comment && (
+            <div className="ai-comment" style={{ marginTop: 4, marginBottom: 8 }}>
+              <div className="ai-comment-header">✦ AI 전략 코멘트</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{log.ai_comment}</div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onEdit(log); }} style={{ color: 'var(--accent)', padding: '4px 10px', fontSize: 12 }}>수정</button>
+            <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onDelete(log.id); }} style={{ color: 'var(--danger)', padding: '4px 10px', fontSize: 12 }}>삭제</button>
+          </div>
         </div>
       )}
-      {log.ai_comment && (
-        <div className="ai-comment">
-          <div className="ai-comment-header">✦ AI 전략 코멘트</div>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{log.ai_comment}</div>
+    </div>
+  )
+}
+
+function ConfirmedCard({ log, displayContent, preview, onEdit, onDelete }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="card card-sm mb-8" style={{ borderLeft: '3px solid var(--confirmed)', padding: 0, overflow: 'hidden' }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none' }}
+      >
+        <span style={{ fontSize: 11, transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: 'var(--text3)' }}>▶</span>
+        <span style={{ fontSize: 11, fontWeight: 600, background: 'var(--confirmed-bg)', color: 'var(--confirmed)', padding: '1px 7px', borderRadius: 10 }}>확정</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--confirmed)' }}>{log.assigned_to}</span>
+        <span className="text-sm" style={{ fontWeight: 600 }}>교육일: {log.task_date}</span>
+        {!open && <span style={{ flex: 1, fontSize: 12.5, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview}</span>}
+      </div>
+      {open && (
+        <div style={{ padding: '0 16px 14px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', padding: '12px 0 8px', color: 'var(--text)' }}>
+            {displayContent}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={{ color: 'var(--accent)', padding: '4px 10px', fontSize: 12 }}>수정</button>
+            <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ color: 'var(--danger)', padding: '4px 10px', fontSize: 12 }}>삭제</button>
+          </div>
         </div>
       )}
     </div>
@@ -338,21 +383,8 @@ export default function ProjectDetail() {
           {confirmedTasks.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>확정된 일정이 없어요</div>
             : confirmedTasks.map(l => {
               const displayContent = l.content.replace(`[${project.name}] `, '')
-              return (
-                <div key={l.id} className="card card-sm mb-16" style={{ borderLeft: `3px solid var(--confirmed)` }}>
-                  <div className="flex-between mb-8">
-                    <div className="flex-center gap-8">
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--confirmed)' }}>{l.assigned_to}</span>
-                      <span className="text-sm" style={{ fontWeight: 600 }}>교육일: {l.task_date}</span>
-                    </div>
-                    <div className="flex-center gap-8">
-                      <button className="btn btn-ghost btn-sm" onClick={() => startEditConfirmed(l)}>수정</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => deleteConfirmed(l.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{displayContent}</div>
-                </div>
-              )
+              const preview = displayContent.split('\n')[0].substring(0, 50) + (displayContent.length > 50 || displayContent.includes('\n') ? '...' : '')
+              return <ConfirmedCard key={l.id} log={l} displayContent={displayContent} preview={preview} onEdit={() => startEditConfirmed(l)} onDelete={() => deleteConfirmed(l.id)} />
             })}
         </div>
       )}
