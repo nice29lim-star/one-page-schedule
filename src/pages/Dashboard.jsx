@@ -8,6 +8,8 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState([])
   const [done, setDone] = useState([])
   const [loading, setLoading] = useState(true)
+  const [editingTask, setEditingTask] = useState(null)
+  const [editForm, setEditForm] = useState({ type: 'tm', content: '', assigned_to: MEMBERS[0] })
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => { fetchAll() }, [])
@@ -28,6 +30,30 @@ export default function Dashboard() {
   async function toggleDone(task) {
     await supabase.from('daily_tasks').update({ is_done: !task.is_done }).eq('id', task.id)
     fetchAll()
+  }
+
+  function openEdit(task) {
+    setEditingTask(task)
+    setEditForm({
+      type: task.type,
+      content: task.content,
+      assigned_to: task.assigned_to,
+    })
+  }
+
+  async function saveEdit() {
+    if (!editForm.content.trim()) return
+    await supabase.from('daily_tasks').update({
+      type: editForm.type,
+      content: editForm.content,
+      assigned_to: editForm.assigned_to,
+    }).eq('id', editingTask.id)
+    setEditingTask(null)
+    fetchAll()
+  }
+
+  function closeEdit() {
+    setEditingTask(null)
   }
 
   const todayStr = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
@@ -82,6 +108,7 @@ export default function Dashboard() {
                       />
                       <span className={`badge ${TYPE_COLOR[t.type]}`}>{TYPE_LABEL[t.type]}</span>
                       <span style={{ flex: 1, fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{t.content}</span>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)} style={{ color: 'var(--accent)', padding: '2px 6px', fontSize: 11 }}>수정</button>
                     </div>
                   ))}
                 </div>
@@ -122,6 +149,7 @@ export default function Dashboard() {
                       />
                       <span className={`badge ${TYPE_COLOR[t.type]}`}>{TYPE_LABEL[t.type]}</span>
                       <span style={{ flex: 1, fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{t.content}</span>
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)} style={{ color: 'var(--accent)', padding: '2px 6px', fontSize: 11 }}>수정</button>
                     </div>
                   ))}
                 </div>
@@ -130,6 +158,42 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* 수정 모달 */}
+      {editingTask && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">할 일 수정</div>
+              <button className="modal-close" onClick={closeEdit}>×</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">유형</label>
+              <div className="flex gap-8">
+                {['tm', 'sales', 'dm', 'plan', 'confirmed'].map(t => (
+                  <button key={t} className={`btn ${editForm.type === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setEditForm(f => ({ ...f, type: t }))}>
+                    {TYPE_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">담당자</label>
+              <select className="form-select" value={editForm.assigned_to} onChange={e => setEditForm(f => ({ ...f, assigned_to: e.target.value }))}>
+                {MEMBERS.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">내용 *</label>
+              <textarea className="form-textarea" value={editForm.content} onChange={e => setEditForm(f => ({ ...f, content: e.target.value }))} />
+            </div>
+            <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={closeEdit}>취소</button>
+              <button className="btn btn-primary" onClick={saveEdit}>수정 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
