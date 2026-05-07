@@ -9,7 +9,7 @@ import { ko } from 'date-fns/locale'
 const TABS = ['TM', '영업', 'DM', '기획', '확정']
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
-function LogCard({ log, type, onDelete }) {
+function LogCard({ log, type, onDelete, onEdit }) {
   const typeColor = { tm: '#3B82F6', sales: '#10B981', dm: '#8B5CF6', plan: '#E11D48' }
   const color = typeColor[type]
   return (
@@ -23,10 +23,11 @@ function LogCard({ log, type, onDelete }) {
         </div>
         <div className="flex-center gap-8">
           <span className="text-sm text-muted">{new Date(log.created_at).toLocaleDateString('ko-KR')}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => onEdit(log)} style={{ color: 'var(--accent)', padding: '2px 6px' }}>수정</button>
           <button className="btn btn-ghost btn-sm" onClick={() => onDelete(log.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
         </div>
       </div>
-      <div style={{ fontSize: 13.5, lineHeight: 1.6, marginBottom: log.dm_content ? 0 : 8 }}>
+      <div style={{ fontSize: 13.5, lineHeight: 1.6, marginBottom: log.dm_content ? 0 : 8, whiteSpace: 'pre-wrap' }}>
         {log.content || log.dm_content}
       </div>
       {log.follow_call_done && (
@@ -37,7 +38,7 @@ function LogCard({ log, type, onDelete }) {
       {log.ai_comment && (
         <div className="ai-comment">
           <div className="ai-comment-header">✦ AI 전략 코멘트</div>
-          {log.ai_comment}
+          <div style={{ whiteSpace: 'pre-wrap' }}>{log.ai_comment}</div>
         </div>
       )}
     </div>
@@ -55,9 +56,10 @@ export default function ProjectDetail() {
   const [planLogs, setPlanLogs] = useState([])
   const [confirmedTasks, setConfirmedTasks] = useState([])
   const [editingLogId, setEditingLogId] = useState(null)
+  const [editingTable, setEditingTable] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
-  const [form, setForm] = useState({
+  const defaultForm = {
     record_date: new Date().toISOString().split('T')[0],
     assigned_to: MEMBERS[0], sent_by: MEMBERS[0],
     content: '', dm_content: '',
@@ -66,7 +68,8 @@ export default function ProjectDetail() {
     follow_call_done: false, follow_called_by: MEMBERS[0],
     confirmed_date: new Date().toISOString().split('T')[0],
     confirmed_time: '14:00',
-  })
+  }
+  const [form, setForm] = useState(defaultForm)
 
   useEffect(() => { fetchAll() }, [id])
 
@@ -90,50 +93,114 @@ export default function ProjectDetail() {
     setConfirmedTasks(conf.data || [])
   }
 
-
+  // 일반 로그(TM/영업/DM/기획) 수정 시작
+  function startEditLog(log, tableKey) {
+    setEditingLogId(log.id)
+    setEditingTable(tableKey)
+    if (tableKey === 'dm_logs') {
+      setForm({
+        ...defaultForm,
+        record_date: log.created_at ? log.created_at.split('T')[0] : defaultForm.record_date,
+        sent_by: log.sent_by || MEMBERS[0],
+        dm_content: log.dm_content || '',
+        sent_at: log.sent_at || defaultForm.sent_at,
+        follow_call_date: log.follow_call_date || '',
+        follow_call_done: log.follow_call_done || false,
+        follow_called_by: log.follow_called_by || MEMBERS[0],
+      })
+    } else {
+      setForm({
+        ...defaultForm,
+        record_date: log.created_at ? log.created_at.split('T')[0] : defaultForm.record_date,
+        assigned_to: log.assigned_to || MEMBERS[0],
+        content: log.content || '',
+        next_contact_date: log.next_contact_date || '',
+      })
+    }
+    setShowForm(true)
+  }
 
   async function submitForm() {
     setAiLoading(true)
     try {
       if (tab === 'TM') {
-        const history = tmLogs.map(l => l.content).join('\n')
-        const ai = await generateTmComment(form.content, form.next_contact_date, history)
-        await supabase.from('tm_logs').insert([{
-          project_id: id, assigned_to: form.assigned_to,
-          content: form.content, next_contact_date: form.next_contact_date || null,
-          created_at: new Date(form.record_date).toISOString(),
-          ai_comment: ai,
-        }])
+        if (editingLogId && editingTable === 'tm_logs') {
+          // 수정
+          await supabase.from('tm_logs').update({
+            assigned_to: form.assigned_to,
+            content: form.content,
+            next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+          }).eq('id', editingLogId)
+        } else {
+          // 신규
+          const history = tmLogs.map(l => l.content).join('\n')
+          const ai = await generateTmComment(form.content, form.next_contact_date, history)
+          await supabase.from('tm_logs').insert([{
+            project_id: id, assigned_to: form.assigned_to,
+            content: form.content, next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+            ai_comment: ai,
+          }])
+        }
       } else if (tab === '영업') {
-        const history = salesLogs.map(l => l.content).join('\n')
-        const ai = await generateSalesComment(form.content, form.next_contact_date, history)
-        await supabase.from('sales_logs').insert([{
-          project_id: id, assigned_to: form.assigned_to,
-          content: form.content, next_contact_date: form.next_contact_date || null,
-          created_at: new Date(form.record_date).toISOString(),
-          ai_comment: ai,
-        }])
+        if (editingLogId && editingTable === 'sales_logs') {
+          await supabase.from('sales_logs').update({
+            assigned_to: form.assigned_to,
+            content: form.content,
+            next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+          }).eq('id', editingLogId)
+        } else {
+          const history = salesLogs.map(l => l.content).join('\n')
+          const ai = await generateSalesComment(form.content, form.next_contact_date, history)
+          await supabase.from('sales_logs').insert([{
+            project_id: id, assigned_to: form.assigned_to,
+            content: form.content, next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+            ai_comment: ai,
+          }])
+        }
       } else if (tab === 'DM') {
-        const history = dmLogs.map(l => l.dm_content).join('\n')
-        const ai = await generateDmComment(form.dm_content, form.follow_call_date, history)
-        await supabase.from('dm_logs').insert([{
-          project_id: id, sent_by: form.sent_by,
-          dm_content: form.dm_content, sent_at: form.sent_at,
-          follow_call_date: form.follow_call_date || null,
-          follow_call_done: form.follow_call_done,
-          follow_called_by: form.follow_call_done ? form.follow_called_by : null,
-          created_at: new Date(form.record_date).toISOString(),
-          ai_comment: ai,
-        }])
+        if (editingLogId && editingTable === 'dm_logs') {
+          await supabase.from('dm_logs').update({
+            sent_by: form.sent_by,
+            dm_content: form.dm_content,
+            sent_at: form.sent_at,
+            follow_call_date: form.follow_call_date || null,
+            follow_call_done: form.follow_call_done,
+            follow_called_by: form.follow_call_done ? form.follow_called_by : null,
+            created_at: new Date(form.record_date).toISOString(),
+          }).eq('id', editingLogId)
+        } else {
+          const history = dmLogs.map(l => l.dm_content).join('\n')
+          const ai = await generateDmComment(form.dm_content, form.follow_call_date, history)
+          await supabase.from('dm_logs').insert([{
+            project_id: id, sent_by: form.sent_by,
+            dm_content: form.dm_content, sent_at: form.sent_at,
+            follow_call_date: form.follow_call_date || null,
+            follow_call_done: form.follow_call_done,
+            follow_called_by: form.follow_call_done ? form.follow_called_by : null,
+            created_at: new Date(form.record_date).toISOString(),
+            ai_comment: ai,
+          }])
+        }
       } else if (tab === '기획') {
-        const history = planLogs.map(l => l.content).join('\n')
-        const ai = null // 기획은 AI 코멘트 생략
-        await supabase.from('plan_logs').insert([{
-          project_id: id, assigned_to: form.assigned_to,
-          content: form.content, next_contact_date: form.next_contact_date || null,
-          created_at: new Date(form.record_date).toISOString(),
-          ai_comment: ai,
-        }])
+        if (editingLogId && editingTable === 'plan_logs') {
+          await supabase.from('plan_logs').update({
+            assigned_to: form.assigned_to,
+            content: form.content,
+            next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+          }).eq('id', editingLogId)
+        } else {
+          await supabase.from('plan_logs').insert([{
+            project_id: id, assigned_to: form.assigned_to,
+            content: form.content, next_contact_date: form.next_contact_date || null,
+            created_at: new Date(form.record_date).toISOString(),
+            ai_comment: null,
+          }])
+        }
       } else if (tab === '확정') {
         const payload = {
           type: 'confirmed',
@@ -149,7 +216,8 @@ export default function ProjectDetail() {
       }
       setShowForm(false)
       setEditingLogId(null)
-      setForm({ record_date: new Date().toISOString().split('T')[0], assigned_to: MEMBERS[0], sent_by: MEMBERS[0], content: '', dm_content: '', next_contact_date: '', follow_call_date: '', sent_at: new Date().toISOString().split('T')[0], follow_call_done: false, follow_called_by: MEMBERS[0], confirmed_date: new Date().toISOString().split('T')[0], confirmed_time: '14:00' })
+      setEditingTable(null)
+      setForm(defaultForm)
       fetchAll()
     } catch (e) {
       alert('저장 중 오류가 발생했어요: ' + e.message)
@@ -175,13 +243,14 @@ export default function ProjectDetail() {
     const content = match ? match[2] : log.content.replace(`[${project.name}] `, '')
     
     setForm({
-      ...form,
+      ...defaultForm,
       confirmed_date: log.task_date,
       confirmed_time: time,
       content: content,
       assigned_to: log.assigned_to
     })
     setEditingLogId(log.id)
+    setEditingTable('daily_tasks')
     setShowForm(true)
   }
 
@@ -189,18 +258,27 @@ export default function ProjectDetail() {
     if (!confirm('정말 이 학교(프로젝트)를 삭제하시겠습니까? 관련된 모든 기록이 함께 삭제됩니다.')) return
     
     try {
-      // 1. 프로젝트 삭제 (관련 로그는 DB의 ON DELETE CASCADE 설정으로 자동 삭제되거나, 뷰에서 사라짐)
       const { error } = await supabase.from('projects').delete().eq('id', id)
       if (error) throw error
       
       alert('삭제되었습니다.')
-      navigate('/projects') // 삭제 후 목록으로 이동
+      navigate('/projects')
     } catch (e) {
       alert('프로젝트 삭제 중 오류 발생: ' + e.message)
     }
   }
 
+  function openAddForm() {
+    setEditingLogId(null)
+    setEditingTable(null)
+    setForm(defaultForm)
+    setShowForm(true)
+  }
+
   if (!project) return <div className="loading"><div className="spinner" /></div>
+
+  const isEditing = !!(editingLogId && editingTable)
+  const modalTitle = isEditing ? `${tab} 수정` : `${tab} 추가`
 
   return (
     <div>
@@ -214,7 +292,7 @@ export default function ProjectDetail() {
             </div>
             <div className="page-subtitle">담당: {project.assigned_to} {project.memo && `· ${project.memo}`}</div>
           </div>
-          <button className="btn btn-primary" onClick={() => { setEditingLogId(null); setShowForm(true); }}>+ {tab} 추가</button>
+          <button className="btn btn-primary" onClick={openAddForm}>+ {tab} 추가</button>
         </div>
       </div>
 
@@ -226,7 +304,7 @@ export default function ProjectDetail() {
       {tab === 'TM' && (
         <div>
           {tmLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>TM 기록이 없어요</div>
-            : tmLogs.map(l => <LogCard key={l.id} log={l} type="tm" onDelete={id => deleteLog('tm_logs', id)} />)}
+            : tmLogs.map(l => <LogCard key={l.id} log={l} type="tm" onDelete={id => deleteLog('tm_logs', id)} onEdit={log => startEditLog(log, 'tm_logs')} />)}
         </div>
       )}
 
@@ -234,7 +312,7 @@ export default function ProjectDetail() {
       {tab === '영업' && (
         <div>
           {salesLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>영업 기록이 없어요</div>
-            : salesLogs.map(l => <LogCard key={l.id} log={l} type="sales" onDelete={id => deleteLog('sales_logs', id)} />)}
+            : salesLogs.map(l => <LogCard key={l.id} log={l} type="sales" onDelete={id => deleteLog('sales_logs', id)} onEdit={log => startEditLog(log, 'sales_logs')} />)}
         </div>
       )}
 
@@ -242,7 +320,7 @@ export default function ProjectDetail() {
       {tab === 'DM' && (
         <div>
           {dmLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>DM 기록이 없어요</div>
-            : dmLogs.map(l => <LogCard key={l.id} log={l} type="dm" onDelete={id => deleteLog('dm_logs', id)} />)}
+            : dmLogs.map(l => <LogCard key={l.id} log={l} type="dm" onDelete={id => deleteLog('dm_logs', id)} onEdit={log => startEditLog(log, 'dm_logs')} />)}
         </div>
       )}
 
@@ -250,7 +328,7 @@ export default function ProjectDetail() {
       {tab === '기획' && (
         <div>
           {planLogs.length === 0 ? <div className="card text-muted text-sm" style={{ textAlign: 'center', padding: 32 }}>기획 기록이 없어요</div>
-            : planLogs.map(l => <LogCard key={l.id} log={l} type="plan" onDelete={id => deleteLog('plan_logs', id)} />)}
+            : planLogs.map(l => <LogCard key={l.id} log={l} type="plan" onDelete={id => deleteLog('plan_logs', id)} onEdit={log => startEditLog(log, 'plan_logs')} />)}
         </div>
       )}
 
@@ -272,22 +350,20 @@ export default function ProjectDetail() {
                       <button className="btn btn-ghost btn-sm" onClick={() => deleteConfirmed(l.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
                     </div>
                   </div>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>{displayContent}</div>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{displayContent}</div>
                 </div>
               )
             })}
         </div>
       )}
 
-
-
-      {/* 입력 모달 */}
+      {/* 입력/수정 모달 */}
       {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+        <div className="modal-overlay" onClick={() => { setShowForm(false); setEditingLogId(null); setEditingTable(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">{editingLogId ? `${tab} 수정` : `${tab} 추가`}</div>
-              <button className="modal-close" onClick={() => { setShowForm(false); setEditingLogId(null); }}>×</button>
+              <div className="modal-title">{modalTitle}</div>
+              <button className="modal-close" onClick={() => { setShowForm(false); setEditingLogId(null); setEditingTable(null); }}>×</button>
             </div>
 
             {tab === 'DM' ? (
@@ -373,23 +449,22 @@ export default function ProjectDetail() {
               </>
             )}
 
-            {tab !== '기획' && tab !== '확정' && (
+            {/* 신규 추가이고 AI 코멘트 대상 탭일 때만 안내 표시 */}
+            {!isEditing && tab !== '기획' && tab !== '확정' && (
               <div style={{ background: 'var(--accent-bg)', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1D4ED8', marginBottom: 16 }}>
                 ✦ 저장 시 Gemini AI가 전략 코멘트를 자동 생성해요
               </div>
             )}
 
             <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>취소</button>
+              <button className="btn btn-secondary" onClick={() => { setShowForm(false); setEditingLogId(null); setEditingTable(null); }}>취소</button>
               <button className="btn btn-primary" onClick={submitForm} disabled={aiLoading}>
-                {aiLoading ? '✦ AI 분석 중...' : '저장'}
+                {aiLoading ? '✦ AI 분석 중...' : isEditing ? '수정 저장' : '저장'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-
     </div>
   )
 }

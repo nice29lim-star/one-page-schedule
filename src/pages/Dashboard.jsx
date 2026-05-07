@@ -81,7 +81,7 @@ export default function Dashboard() {
                         style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--accent)' }}
                       />
                       <span className={`badge ${TYPE_COLOR[t.type]}`}>{TYPE_LABEL[t.type]}</span>
-                      <span style={{ flex: 1, fontSize: 13.5 }}>{t.content}</span>
+                      <span style={{ flex: 1, fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{t.content}</span>
                     </div>
                   ))}
                 </div>
@@ -121,7 +121,7 @@ export default function Dashboard() {
                         style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--success)' }}
                       />
                       <span className={`badge ${TYPE_COLOR[t.type]}`}>{TYPE_LABEL[t.type]}</span>
-                      <span style={{ flex: 1, fontSize: 13.5 }}>{t.content}</span>
+                      <span style={{ flex: 1, fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{t.content}</span>
                     </div>
                   ))}
                 </div>

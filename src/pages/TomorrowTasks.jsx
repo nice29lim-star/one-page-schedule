@@ -7,6 +7,7 @@ const TYPE_COLOR = { tm: 'badge-tm', sales: 'badge-sales', dm: 'badge-dm', plan:
 export default function TomorrowTasks() {
   const [tasks, setTasks] = useState([])
   const [showAdd, setShowAdd] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
   const [targetDate, setTargetDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 1)
     return d.toISOString().split('T')[0]
@@ -14,9 +15,9 @@ export default function TomorrowTasks() {
   const [form, setForm] = useState({ type: 'tm', content: '', assigned_to: MEMBERS[0], task_date: '' })
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetch() }, [targetDate])
+  useEffect(() => { fetchTasks() }, [targetDate])
 
-  async function fetch() {
+  async function fetchTasks() {
     setLoading(true)
     const { data } = await supabase.from('daily_tasks').select('*').eq('task_date', targetDate).order('assigned_to')
     setTasks(data || [])
@@ -26,31 +27,76 @@ export default function TomorrowTasks() {
   async function addTask() {
     if (!form.content.trim()) return
     const insertDate = form.task_date || targetDate
-    const { error } = await supabase.from('daily_tasks').insert([{ 
-      type: form.type, 
-      content: form.content, 
-      assigned_to: form.assigned_to, 
-      task_date: insertDate 
+    const { error } = await supabase.from('daily_tasks').insert([{
+      type: form.type,
+      content: form.content,
+      assigned_to: form.assigned_to,
+      task_date: insertDate
     }])
-    
+
     if (error) {
       alert('할 일 저장 중 오류 발생: ' + error.message)
       return
     }
-    
-    setShowAdd(false)
+
+    closeModal()
     if (insertDate !== targetDate) {
-      setTargetDate(insertDate) // 날짜가 바뀌면 useEffect가 fetch를 실행함
+      setTargetDate(insertDate)
     } else {
-      fetch() // 같은 날짜면 수동으로 fetch 실행
+      fetchTasks()
     }
-    setForm({ type: 'tm', content: '', assigned_to: MEMBERS[0], task_date: '' })
+  }
+
+  async function updateTask() {
+    if (!form.content.trim()) return
+    const { error } = await supabase.from('daily_tasks').update({
+      type: form.type,
+      content: form.content,
+      assigned_to: form.assigned_to,
+      task_date: form.task_date || targetDate,
+    }).eq('id', editingTask.id)
+
+    if (error) {
+      alert('수정 중 오류 발생: ' + error.message)
+      return
+    }
+
+    const newDate = form.task_date || targetDate
+    closeModal()
+    if (newDate !== targetDate) {
+      setTargetDate(newDate)
+    } else {
+      fetchTasks()
+    }
   }
 
   async function deleteTask(id) {
     if (!confirm('삭제할까요?')) return
     await supabase.from('daily_tasks').delete().eq('id', id)
-    fetch()
+    fetchTasks()
+  }
+
+  function openAdd() {
+    setEditingTask(null)
+    setForm({ type: 'tm', content: '', assigned_to: MEMBERS[0], task_date: '' })
+    setShowAdd(true)
+  }
+
+  function openEdit(task) {
+    setEditingTask(task)
+    setForm({
+      type: task.type,
+      content: task.content,
+      assigned_to: task.assigned_to,
+      task_date: task.task_date,
+    })
+    setShowAdd(true)
+  }
+
+  function closeModal() {
+    setShowAdd(false)
+    setEditingTask(null)
+    setForm({ type: 'tm', content: '', assigned_to: MEMBERS[0], task_date: '' })
   }
 
   const byMember = MEMBERS.map(m => ({ name: m, tasks: tasks.filter(t => t.assigned_to === m) }))
@@ -63,7 +109,7 @@ export default function TomorrowTasks() {
           <div className="page-title">할 일 관리</div>
           <div className="page-subtitle">날짜별로 TM·영업·DM 할 일을 관리해요</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ 할 일 추가</button>
+        <button className="btn btn-primary" onClick={openAdd}>+ 할 일 추가</button>
       </div>
 
       {/* 날짜 선택 */}
@@ -91,7 +137,8 @@ export default function TomorrowTasks() {
                 mt.map(t => (
                   <div key={t.id} className={`flex-center gap-8 mb-8${t.is_done ? ' done' : ''}`} style={{ padding: '9px 12px', background: 'var(--bg)', borderRadius: 8 }}>
                     <span className={`badge ${TYPE_COLOR[t.type]}`}>{TYPE_LABEL[t.type]}</span>
-                    <span style={{ flex: 1, fontSize: 13.5 }}>{t.content}</span>
+                    <span style={{ flex: 1, fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{t.content}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)} style={{ color: 'var(--accent)', padding: '2px 6px' }}>수정</button>
                     <button className="btn btn-ghost btn-sm" onClick={() => deleteTask(t.id)} style={{ color: 'var(--danger)', padding: '2px 6px' }}>삭제</button>
                   </div>
                 ))
@@ -102,11 +149,11 @@ export default function TomorrowTasks() {
       )}
 
       {showAdd && (
-        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="modal-title">할 일 추가</div>
-              <button className="modal-close" onClick={() => setShowAdd(false)}>×</button>
+              <div className="modal-title">{editingTask ? '할 일 수정' : '할 일 추가'}</div>
+              <button className="modal-close" onClick={closeModal}>×</button>
             </div>
             <div className="form-group">
               <label className="form-label">날짜 선택</label>
@@ -133,8 +180,10 @@ export default function TomorrowTasks() {
               <textarea className="form-textarea" placeholder="할 일 내용을 입력하세요" value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} />
             </div>
             <div className="flex gap-8" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>취소</button>
-              <button className="btn btn-primary" onClick={addTask}>추가</button>
+              <button className="btn btn-secondary" onClick={closeModal}>취소</button>
+              <button className="btn btn-primary" onClick={editingTask ? updateTask : addTask}>
+                {editingTask ? '수정 저장' : '추가'}
+              </button>
             </div>
           </div>
         </div>
