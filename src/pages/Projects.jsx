@@ -96,8 +96,7 @@ export default function Projects() {
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
                 <span style={{ fontSize: 11, background: 'var(--accent-bg)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 20, fontWeight: 500 }}>{p.assigned_to}</span>
               </div>
-              {p.memo && <div className="text-sm text-muted" style={{ marginTop: 6, lineHeight: 1.5 }}>{p.memo}</div>}
-              <div className="text-sm text-muted" style={{ marginTop: 10 }}>
+              <div className="text-sm text-muted" style={{ marginTop: 6 }}>
                 {new Date(p.created_at).toLocaleDateString('ko-KR')} 등록
               </div>
             </div>

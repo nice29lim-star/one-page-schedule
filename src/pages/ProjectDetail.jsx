@@ -361,7 +361,7 @@ export default function ProjectDetail() {
               <div className="page-title">{project.name}</div>
               <button className="btn btn-ghost btn-sm" onClick={deleteProject} style={{ color: 'var(--danger)', padding: '4px 8px' }}>학교 삭제</button>
             </div>
-            <div className="page-subtitle">담당: {project.assigned_to} {project.memo && `· ${project.memo}`}</div>
+            <div className="page-subtitle">담당: {project.assigned_to}</div>
           </div>
           <button className="btn btn-primary" onClick={openAddForm}>+ {tab} 추가</button>
         </div>
