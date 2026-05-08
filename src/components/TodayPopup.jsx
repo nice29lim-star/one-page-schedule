@@ -11,7 +11,7 @@ const TYPE_COLOR = {
 }
 
 function MemberSection({ name, tasks, events }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const total = tasks.length + events.length
 
   return (

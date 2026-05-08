@@ -32,20 +32,18 @@ export default function CalendarPage() {
     }
     const [{ data: cal }, { data: dt }] = await Promise.all([
       supabase.from('calendar_events').select('*').gte('event_date', from).lte('event_date', to).order('event_date'),
-      supabase.from('daily_tasks').select('*').gte('task_date', from).lte('task_date', to)
+      supabase.from('daily_tasks').select('*').eq('type', 'confirmed').gte('task_date', from).lte('task_date', to)
     ])
     
     const dtMapped = (dt || []).map(t => {
-      let school_name = '일반 할 일'
+      let school_name = '확정'
       let content = t.content
       
       // [학교명] 형식의 확정 일정 파싱
-      if (t.type === 'confirmed') {
-        const match = t.content.match(/^\[(.*?)\] (.*)/)
-        if (match) {
-          school_name = match[1]
-          content = match[2]
-        }
+      const match = t.content.match(/^\[(.*?)\] (.*)/)
+      if (match) {
+        school_name = match[1]
+        content = match[2]
       }
 
       return {
