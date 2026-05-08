@@ -170,7 +170,6 @@ export default function ProjectDetail() {
     try {
       if (tab === 'TM') {
         if (editingLogId && editingTable === 'tm_logs') {
-          // 수정
           await supabase.from('tm_logs').update({
             assigned_to: form.assigned_to,
             content: form.content,
@@ -178,7 +177,6 @@ export default function ProjectDetail() {
             created_at: new Date(form.record_date).toISOString(),
           }).eq('id', editingLogId)
         } else {
-          // 신규
           const history = tmLogs.map(l => l.content).join('\n')
           const ai = await generateTmComment(form.content, form.next_contact_date, history)
           await supabase.from('tm_logs').insert([{
@@ -259,6 +257,34 @@ export default function ProjectDetail() {
           await supabase.from('daily_tasks').insert([payload])
         }
       }
+
+      // TM / 영업 / 기획: 예정일이 있으면 daily_tasks에도 자동 연결 (신규만)
+      if ((tab === 'TM' || tab === '영업' || tab === '기획') && form.next_contact_date && !editingLogId) {
+        const typeMap = { 'TM': 'tm', '영업': 'sales', '기획': 'plan' }
+        const preview = form.content.split('\n')[0].substring(0, 30)
+        const suffix = form.content.length > 30 ? '...' : ''
+        const taskContent = `[${project.name}] ${tab} 예정 - ${preview}${suffix}`
+        await supabase.from('daily_tasks').insert([{
+          type: typeMap[tab],
+          assigned_to: form.assigned_to,
+          content: taskContent,
+          task_date: form.next_contact_date,
+        }])
+      }
+
+      // DM: 확인전화 예정일이 있으면 daily_tasks에도 자동 연결 (신규만)
+      if (tab === 'DM' && form.follow_call_date && !editingLogId) {
+        const preview = form.dm_content.split('\n')[0].substring(0, 30)
+        const suffix = form.dm_content.length > 30 ? '...' : ''
+        const taskContent = `[${project.name}] DM 확인전화 예정 - ${preview}${suffix}`
+        await supabase.from('daily_tasks').insert([{
+          type: 'dm',
+          assigned_to: form.sent_by,
+          content: taskContent,
+          task_date: form.follow_call_date,
+        }])
+      }
+
       setShowForm(false)
       setEditingLogId(null)
       setEditingTable(null)

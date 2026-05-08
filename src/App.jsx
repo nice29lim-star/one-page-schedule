@@ -13,7 +13,7 @@ import { supabase } from './lib/supabase.js'
 const NAV = [
   { to: '/', icon: '◈', label: '대시보드' },
   { to: '/projects', icon: '◉', label: '프로젝트' },
-  { to: '/tomorrow', icon: '◎', label: '내일 할 일' },
+  { to: '/tomorrow', icon: '◎', label: '할 일' },
   { to: '/calendar', icon: '▦', label: '달력' },
   { to: '/reports', icon: '◆', label: '리포트' },
 ]
